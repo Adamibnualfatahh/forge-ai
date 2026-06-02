@@ -170,6 +170,8 @@ export default function App() {
   // States to handle editing an existing log
   const [editingLog, setEditingLog] = useState<WorkoutLog | null>(null);
   const [editDate, setEditDate] = useState("");
+  const [editTimeStart, setEditTimeStart] = useState("");
+  const [editTimeEnd, setEditTimeEnd] = useState("");
   const [editFocus, setEditFocus] = useState("");
   const [editLocation, setEditLocation] = useState("");
   const [editEquipment, setEditEquipment] = useState<string[]>([]);
@@ -1095,6 +1097,10 @@ export default function App() {
         })
       });
       if (res.ok) {
+        // Persist time for this log
+        if (editTimeStart && editTimeEnd) {
+          localStorage.setItem(`forge-time-${editingLog.id}`, JSON.stringify({ start: editTimeStart, end: editTimeEnd }));
+        }
         await fetchLogs(activeProfile.id);
         setEditingLog(null);
       } else {
@@ -1693,7 +1699,19 @@ export default function App() {
                                     <span>Ubah</span>
                                   </button>
                                   <button
-                                    onClick={() => { setShareData({ focus: log.focus, duration: 0, exercises: log.exercises, volume: calculateTotalVolume(log.exercises) }); setShowShare(true); }}
+                                    onClick={() => { 
+                                      const vol = calculateTotalVolume(log.exercises);
+                                      let dur = 0;
+                                      const saved = localStorage.getItem(`forge-time-${log.id}`);
+                                      if (saved) {
+                                        const { start, end } = JSON.parse(saved);
+                                        const [sh, sm] = start.split(':').map(Number);
+                                        const [eh, em] = end.split(':').map(Number);
+                                        dur = ((eh * 60 + em) - (sh * 60 + sm)) * 60;
+                                        if (dur < 0) dur = 0;
+                                      }
+                                      setShareData({ focus: log.focus, duration: dur, exercises: log.exercises, volume: vol }); setShowShare(true); 
+                                    }}
                                     title="Share"
                                     className="p-2 rounded bg-zinc-850 hover:bg-zinc-800 text-[#c3f400] hover:text-[#c3f400] transition-colors border border-zinc-800 flex items-center gap-1 text-xs font-semibold"
                                   >
@@ -2875,29 +2893,31 @@ export default function App() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 z-50 overflow-y-auto"
+            className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex flex-col"
           >
             <motion.div 
-              initial={{ scale: 0.95, y: 15 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.95, y: 15 }}
-              className="bg-[#121212] w-full max-w-2xl rounded-2xl border border-zinc-800 p-6 space-y-6 shadow-[0_0_50px_rgba(195,244,0,0.1)] my-8 text-left"
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              className="bg-[#121212] w-full max-w-[430px] mx-auto mt-auto rounded-t-2xl border-t border-zinc-800 flex flex-col max-h-[92vh] overflow-hidden"
             >
-              {/* Modal header */}
-              <div className="flex justify-between items-center border-b border-zinc-800 pb-3">
+              {/* Sticky header */}
+              <div className="flex justify-between items-center border-b border-zinc-800 p-4 shrink-0">
                 <div>
-                  <span className="text-[10px] font-mono uppercase tracking-widest text-[#c3f400] font-black">UBAH SESI LATIHAN</span>
-                  <h3 className="font-display text-xl font-bold text-white mt-0.5">{editFocus}</h3>
+                  <span className="text-[10px] text-zinc-500 uppercase font-semibold">Ubah Sesi</span>
+                  <h3 className="font-display text-lg font-bold text-white">{editFocus}</h3>
                 </div>
                 <button 
                   onClick={() => setEditingLog(null)}
-                  className="text-zinc-500 hover:text-white p-1 rounded-full bg-zinc-900 border border-zinc-800"
+                  className="text-zinc-400 hover:text-white p-2 rounded-xl bg-zinc-900 border border-zinc-800"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
-              {/* Form elements */}
+              {/* Scrollable content */}
+              <div className="flex-1 overflow-y-auto p-4 space-y-5">
               <div className="space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {/* Date */}
@@ -2909,6 +2929,17 @@ export default function App() {
                       onChange={(e) => setEditDate(e.target.value)}
                       className="w-full bg-[#1c1c1c] border border-zinc-700 rounded-lg h-10 px-3 text-xs text-white"
                     />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs uppercase tracking-widest text-[#c4c9ac] font-bold mb-1">Waktu (opsional)</label>
+                    <div className="flex gap-2 items-center">
+                      <input type="time" value={editTimeStart} onChange={e => setEditTimeStart(e.target.value)}
+                        className="flex-1 bg-[#1c1c1c] border border-zinc-700 rounded-lg h-10 px-3 text-xs text-white" />
+                      <span className="text-zinc-500 text-xs">—</span>
+                      <input type="time" value={editTimeEnd} onChange={e => setEditTimeEnd(e.target.value)}
+                        className="flex-1 bg-[#1c1c1c] border border-zinc-700 rounded-lg h-10 px-3 text-xs text-white" />
+                    </div>
                   </div>
 
                   {/* Location */}
@@ -3218,6 +3249,7 @@ export default function App() {
                 >
                   SIMPAN PERUBAHAN
                 </button>
+              </div>
               </div>
             </motion.div>
           </motion.div>

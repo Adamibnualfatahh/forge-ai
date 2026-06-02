@@ -113,7 +113,7 @@ export default function ShareCard(props: Props) {
 
     // Bottom stats - clean white boxes
     const statsToShow: { val: string; label: string }[] = [];
-    if (showDuration && mins > 0) statsToShow.push({ val: `${mins}`, label: 'min' });
+    if (showDuration) statsToShow.push({ val: mins > 0 ? `${mins}` : '—', label: 'min' });
     if (showExerciseCount) statsToShow.push({ val: `${exercises.length}`, label: 'exercises' });
     if (showSets) statsToShow.push({ val: `${setsTotal}`, label: 'sets' });
     if (showVolume && totalVolume > 0) statsToShow.push({ val: `${totalVolume}`, label: 'kg' });
