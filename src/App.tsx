@@ -40,7 +40,8 @@ import {
   Upload,
   Sun,
   Moon,
-  Download
+  Download,
+  Share2
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Profile, Exercise, WorkoutLog, RecompAnalysis, ChatMessage } from "./types";
@@ -49,6 +50,9 @@ import WeightChart from "./WeightChart";
 import WorkoutTemplates from "./WorkoutTemplates";
 import GoalSetting from "./GoalSetting";
 import ProgressiveOverload from "./ProgressiveOverload";
+import { getExerciseInfo, searchExercises, EXERCISE_DB, ExerciseInfo } from "./exerciseDb";
+import MuscleIcon from "./MuscleIcon";
+import ShareCard from "./ShareCard";
 
 export default function App() {
   // Profiles state
@@ -91,6 +95,24 @@ export default function App() {
 
   // Logs state
   const [logs, setLogs] = useState<WorkoutLog[]>([]);
+
+  // Workout elapsed timer
+  const [workoutStartTime, setWorkoutStartTime] = useState<number | null>(null);
+  const [workoutElapsed, setWorkoutElapsed] = useState(0);
+
+  useEffect(() => {
+    if (!workoutStartTime) { setWorkoutElapsed(0); return; }
+    const iv = setInterval(() => setWorkoutElapsed(Math.floor((Date.now() - workoutStartTime) / 1000)), 1000);
+    return () => clearInterval(iv);
+  }, [workoutStartTime]);
+
+  // Exercise search
+  const [exSearchQuery, setExSearchQuery] = useState("");
+  const [showExSearch, setShowExSearch] = useState(false);
+
+  // Share card after workout
+  const [showShare, setShowShare] = useState(false);
+  const [shareData, setShareData] = useState<{ focus: string; duration: number; exercises: Exercise[]; volume: number } | null>(null);
 
   // Dark/Light mode
   const [darkMode, setDarkMode] = useState(() => {
@@ -605,6 +627,7 @@ export default function App() {
   const triggerStartWorkout = () => {
     setIsActivelyTraining(true);
     setCompletedExercises({});
+    setWorkoutStartTime(Date.now());
   };
 
   // Toggle set / exercises checkbox completion in active workout
@@ -634,9 +657,12 @@ export default function App() {
       });
 
       if (res.ok) {
-        alert(`Sesi '${todayPlan.focus}' selesai & tersimpan! 🏆`);
+        const vol = calculateTotalVolume(todayPlan.exercises);
+        setShareData({ focus: todayPlan.focus, duration: workoutElapsed, exercises: todayPlan.exercises, volume: vol });
+        setShowShare(true);
         setIsActivelyTraining(false);
         setCompletedExercises({});
+        setWorkoutStartTime(null);
         await fetchLogs(activeProfile.id);
         await fetchProfiles();
         setActiveProfile(prev => prev ? {
@@ -1474,12 +1500,18 @@ export default function App() {
                       <span className="text-[10px] uppercase font-semibold tracking-wide text-[#c3f400]">Sedang Latihan</span>
                       <h3 className="font-display text-2xl font-black text-white">{todayPlan?.focus}</h3>
                     </div>
-                    <button 
-                      onClick={() => setIsActivelyTraining(false)}
-                      className="text-zinc-400 hover:text-white p-1 rounded-full bg-zinc-900 hover:bg-zinc-800 transition-colors"
-                    >
-                      <X className="w-5 h-5" />
-                    </button>
+                    <div className="flex items-center gap-3">
+                      <div className="text-right">
+                        <span className="text-[10px] text-zinc-500 block">Durasi</span>
+                        <span className="font-mono text-lg font-bold text-white">{Math.floor(workoutElapsed/60)}:{String(workoutElapsed%60).padStart(2,'0')}</span>
+                      </div>
+                      <button 
+                        onClick={() => { setIsActivelyTraining(false); setWorkoutStartTime(null); }}
+                        className="text-zinc-400 hover:text-white p-1 rounded-full bg-zinc-900 hover:bg-zinc-800 transition-colors"
+                      >
+                        <X className="w-5 h-5" />
+                      </button>
+                    </div>
                   </div>
 
                   {/* Tickable Exercises Stack */}
@@ -1495,9 +1527,7 @@ export default function App() {
                         }`}
                       >
                         <div className="flex gap-3 items-center">
-                          <div className={`p-2 rounded-lg ${completedExercises[index] ? "bg-[#c3f400]/20 text-[#c3f400]" : "bg-zinc-800 text-zinc-400"}`}>
-                            <Dumbbell className="w-5 h-5" />
-                          </div>
+                          <MuscleIcon name={ex.name} size={40} />
                           <div>
                             <h4 className={`font-display text-md font-bold text-white ${completedExercises[index] ? "line-through text-zinc-500" : ""}`}>{ex.name}</h4>
                             <p className="font-sans text-xs text-[#c4c9ac] mt-1">
@@ -1659,6 +1689,13 @@ export default function App() {
                                   >
                                     <Edit className="w-3.5 h-3.5" />
                                     <span>Ubah</span>
+                                  </button>
+                                  <button
+                                    onClick={() => { setShareData({ focus: log.focus, duration: 0, exercises: log.exercises, volume: calculateTotalVolume(log.exercises) }); setShowShare(true); }}
+                                    title="Share"
+                                    className="p-2 rounded bg-zinc-850 hover:bg-zinc-800 text-[#c3f400] hover:text-[#c3f400] transition-colors border border-zinc-800 flex items-center gap-1 text-xs font-semibold"
+                                  >
+                                    <Share2 className="w-3.5 h-3.5" />
                                   </button>
                                   <button
                                     onClick={() => setDeleteLogId(log.id)}
@@ -1946,7 +1983,7 @@ export default function App() {
                     return (
                       <div key={idx} className="bg-zinc-900 border border-zinc-800/80 p-4 rounded-lg flex justify-between items-start gap-2 text-left">
                         <div className="flex items-start gap-2">
-                          <span className="font-mono text-xs font-bold text-[#c3f400] mt-0.5">{idx + 1}.</span>
+                          <MuscleIcon name={item.name} size={36} />
                           <div>
                             <h4 className="font-display font-bold text-white text-md">{item.name}</h4>
                             <p className="font-sans text-xs text-[#c4c9ac] mt-1 flex flex-wrap items-center gap-2">
@@ -2012,7 +2049,12 @@ export default function App() {
 
                 {/* Manual Adder Inline Frame */}
                 <div className="border-t border-zinc-800 pt-4 space-y-3">
-                  <span className="text-xs font-bold text-[#c4c9ac] uppercase block">Tambah Gerakan Manual</span>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-[#c4c9ac] uppercase">Tambah Gerakan</span>
+                    <button onClick={() => setShowExSearch(true)} className="text-[11px] text-[#c3f400] font-bold flex items-center gap-1">
+                      <Plus className="w-3.5 h-3.5" /> Cari Exercise
+                    </button>
+                  </div>
                   
                   {/* Cardio or Strength toggle */}
                   <div className="flex items-center gap-4 text-xs font-bold">
@@ -2037,13 +2079,29 @@ export default function App() {
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                    <input 
-                      type="text"
-                      placeholder={customExerciseIsCardio ? "e.g. Treadmill Run" : "e.g. Bench Press"}
-                      value={customExerciseName}
-                      onChange={(e) => setCustomExerciseName(e.target.value)}
-                      className="w-full sm:col-span-1 bg-[#201f1f] border border-zinc-700/80 rounded h-10 px-2.5 text-xs text-white"
-                    />
+                    <div className="relative w-full sm:col-span-1">
+                      <input 
+                        type="text"
+                        placeholder="Cari atau ketik gerakan..."
+                        value={customExerciseName}
+                        onChange={(e) => setCustomExerciseName(e.target.value)}
+                        className="w-full bg-[#201f1f] border border-zinc-700/80 rounded h-10 px-2.5 text-xs text-white"
+                      />
+                      {customExerciseName.trim().length > 0 && (
+                        <div className="absolute top-full left-0 right-0 mt-1 bg-[#1a1a1a] border border-zinc-800 rounded-xl max-h-48 overflow-y-auto z-20 shadow-lg">
+                          {searchExercises(customExerciseName).slice(0, 6).map(ex => (
+                            <button key={ex.name} type="button" onClick={() => { setCustomExerciseName(ex.name); setCustomExerciseIsCardio(ex.category === 'cardio'); }}
+                              className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-zinc-800 transition-colors text-left">
+                              <MuscleIcon name={ex.name} size={32} />
+                              <div>
+                                <span className="text-xs font-medium text-white block">{ex.name}</span>
+                                <span className="text-[10px] text-zinc-500">{ex.muscle}</span>
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                     
                     {customExerciseIsCardio ? (
                       <input 
@@ -2708,6 +2766,52 @@ export default function App() {
           <span className="text-[9px] sm:text-[10px] uppercase font-bold tracking-wider mt-1 block">Scan</span>
         </button>
       </nav>
+
+      {/* SHARE WORKOUT CARD */}
+      {showShare && shareData && activeProfile && (
+        <ShareCard
+          name={activeProfile.name}
+          focus={shareData.focus}
+          duration={shareData.duration}
+          exercises={shareData.exercises}
+          totalVolume={shareData.volume}
+          onClose={() => setShowShare(false)}
+        />
+      )}
+
+      {/* EXERCISE SEARCH MODAL */}
+      <AnimatePresence>
+        {showExSearch && (
+          <div className="fixed inset-0 bg-black/80 flex flex-col items-center justify-end p-0 z-50 backdrop-blur-sm">
+            <motion.div initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 25 }}
+              className="bg-[#121212] border-t border-zinc-800 rounded-t-2xl w-full max-w-[430px] max-h-[80vh] flex flex-col">
+              <div className="p-4 border-b border-zinc-800 flex items-center gap-3">
+                <input type="text" placeholder="Cari exercise..." value={exSearchQuery} onChange={e => setExSearchQuery(e.target.value)} autoFocus
+                  className="flex-1 bg-zinc-900 border border-zinc-800 rounded-xl h-10 px-3 text-sm text-white" />
+                <button onClick={() => { setShowExSearch(false); setExSearchQuery(""); }} className="text-zinc-400 p-2">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="flex-1 overflow-y-auto p-3 space-y-1">
+                {searchExercises(exSearchQuery).map(ex => (
+                  <button key={ex.name} onClick={() => {
+                    setLoggerExercises(prev => [...prev, { name: ex.name, sets: 3, reps: "12", notes: ex.muscle, is_cardio: ex.category === 'cardio', duration_minutes: ex.category === 'cardio' ? 30 : undefined }]);
+                    setShowExSearch(false); setExSearchQuery("");
+                  }}
+                    className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-zinc-900 transition-colors text-left">
+                    <MuscleIcon name={ex.name} size={40} />
+                    <div className="flex-1">
+                      <span className="text-sm font-semibold text-white block">{ex.name}</span>
+                      <span className="text-[11px] text-zinc-500">{ex.muscle}</span>
+                    </div>
+                    <Plus className="w-4 h-4 text-zinc-600" />
+                  </button>
+                ))}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* PROFILE EDIT/DELETE MODAL */}
       <AnimatePresence>
