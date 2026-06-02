@@ -638,11 +638,6 @@ export default function App() {
       if (!res.ok) { setFormError("Gagal menyimpan workout. Coba lagi."); return; }
       await fetchLogs(activeProfile.id);
       await fetchProfiles();
-      setActiveProfile(prev => prev ? {
-        ...prev,
-        total_sessions: prev.total_sessions + 1,
-        streak: prev.streak + 1
-      } : null);
       setCurrentTab('dashboard');
     } catch (err) {
       setFormError("Koneksi gagal. Periksa jaringan.");
@@ -708,11 +703,6 @@ export default function App() {
         setWorkoutStartTime(null);
         await fetchLogs(activeProfile.id);
         await fetchProfiles();
-        setActiveProfile(prev => prev ? {
-          ...prev,
-          total_sessions: prev.total_sessions + 1,
-          streak: prev.streak + 1
-        } : null);
       }
     } catch (err) {
       console.error(err);
@@ -745,7 +735,6 @@ export default function App() {
         setLatestRecomp(data);
         // Refresh active profile metrics as height/weight gets updated in active profile
         setProfiles(prev => prev.map(p => p.id === activeProfile.id ? { ...p, height: tb, weight: bb } : p));
-        setActiveProfile(prev => prev ? { ...prev, height: tb, weight: bb } : null);
       }
     } catch (err) {
       console.error(err);
@@ -1019,11 +1008,6 @@ export default function App() {
         // Refresh logs and client profile statistics
         await fetchLogs(activeProfile.id);
         await fetchProfiles();
-        // Update local active profile sessions count
-        setActiveProfile(prev => prev ? {
-          ...prev,
-          total_sessions: Math.max(0, prev.total_sessions - 1)
-        } : null);
         setDeleteLogId(null);
       } else {
         alert("Gagal menghapus riwayat latihan.");

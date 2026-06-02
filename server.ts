@@ -1097,7 +1097,6 @@ function getFallbackWorkout(lastFocus: string, equipment: string[], targetFocus?
 
 // Serve Vite or static files based on node environment
 
-async function startServer() {
 // Toggle Apple Health connection
 app.post("/api/profiles/:id/apple-health", async (req, res) => {
   const profileId = req.params.id;
@@ -1115,6 +1114,8 @@ app.post("/api/profiles/:id/apple-health", async (req, res) => {
     res.status(500).json({ error: "Failed to update Apple Health status" });
   }
 });
+
+async function startServer() {
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
       server: { middlewareMode: true },
