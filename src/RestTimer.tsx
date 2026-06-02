@@ -69,11 +69,11 @@ export default function RestTimer() {
             </button>
           ) : (
             <>
-              <button onClick={toggle} className="bg-zinc-800 text-white font-bold px-5 py-2.5 rounded-xl flex items-center gap-1.5 text-sm border border-zinc-700">
+              <button onClick={toggle} className="bg-zinc-800 text-white font-bold px-5 py-2.5 rounded-xl flex items-center gap-1.5 text-sm border border-zinc-700 focus:outline-none focus:ring-2 focus:ring-[#c3f400]/50 focus:border-[#c3f400] transition-all">
                 {running ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
                 {running ? 'Pause' : 'Resume'}
               </button>
-              <button onClick={reset} className="bg-zinc-900 text-zinc-400 px-4 py-2.5 rounded-xl border border-zinc-800">
+              <button onClick={reset} className="bg-zinc-900 text-zinc-400 px-4 py-2.5 rounded-xl border border-zinc-800 focus:outline-none focus:ring-2 focus:ring-[#c3f400]/50 focus:border-[#c3f400] transition-all">
                 <RotateCcw className="w-4 h-4" />
               </button>
             </>

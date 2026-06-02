@@ -1285,7 +1285,7 @@ export default function App() {
                       placeholder="e.g. John Doe"
                       value={newProfileName}
                       onChange={(e) => setNewProfileName(e.target.value)}
-                      className="w-full bg-[#131313] border border-zinc-700 rounded-lg h-11 px-3 text-white focus:outline-none focus:border-[#c3f400] transition-colors"
+                      className="w-full bg-[#131313] border border-zinc-800 rounded-xl h-11 px-3 text-white focus:outline-none focus:border-[#c3f400] transition-colors"
                     />
                   </div>
 
@@ -1297,7 +1297,7 @@ export default function App() {
                         required
                         value={newProfileHeight}
                         onChange={(e) => setNewProfileHeight(e.target.value)}
-                        className="w-full bg-[#131313] border border-zinc-700 rounded-lg h-11 px-3 text-white focus:outline-none focus:border-[#c3f400] transition-colors"
+                        className="w-full bg-[#131313] border border-zinc-800 rounded-xl h-11 px-3 text-white focus:outline-none focus:border-[#c3f400] transition-colors"
                       />
                     </div>
                     <div>
@@ -1307,7 +1307,7 @@ export default function App() {
                         required
                         value={newProfileWeight}
                         onChange={(e) => setNewProfileWeight(e.target.value)}
-                        className="w-full bg-[#131313] border border-zinc-700 rounded-lg h-11 px-3 text-white focus:outline-none focus:border-[#c3f400] transition-colors"
+                        className="w-full bg-[#131313] border border-zinc-800 rounded-xl h-11 px-3 text-white focus:outline-none focus:border-[#c3f400] transition-colors"
                       />
                     </div>
                   </div>
@@ -1319,7 +1319,7 @@ export default function App() {
                       required
                       value={newProfileTargetWeight}
                       onChange={(e) => setNewProfileTargetWeight(e.target.value)}
-                      className="w-full bg-[#131313] border border-zinc-700 rounded-lg h-11 px-3 text-white focus:outline-none focus:border-[#c3f400] transition-colors"
+                      className="w-full bg-[#131313] border border-zinc-800 rounded-xl h-11 px-3 text-white focus:outline-none focus:border-[#c3f400] transition-colors"
                     />
                   </div>
 

@@ -88,18 +88,18 @@ export default function GoalSetting({ profileId, currentWeight, totalSessions }:
       {show && (
         <div className="space-y-2 bg-zinc-900 p-3 rounded-xl border border-zinc-800">
           <select value={type} onChange={e => setType(e.target.value)}
-            className="w-full bg-zinc-800 text-white text-xs rounded-lg h-9 px-2 border border-zinc-700">
+            className="w-full bg-zinc-800 text-white text-xs rounded-xl h-10 px-3 border border-zinc-700">
             <option value="weight">Target Berat Badan</option>
             <option value="sessions">Target Jumlah Sesi</option>
           </select>
           <input placeholder="Deskripsi (e.g. Turun ke 75kg) *" value={desc} onChange={e => setDesc(e.target.value)}
-            className={`w-full bg-zinc-800 text-white text-xs rounded-lg h-9 px-3 border ${!desc.trim() && error ? 'field-error' : 'border-zinc-700'}`} />
+            className={`w-full bg-zinc-800 text-white text-xs rounded-xl h-10 px-3 border ${!desc.trim() && error ? 'field-error' : 'border-zinc-700'}`} />
           <input type="number" placeholder={type === 'weight' ? "Target BB (kg) *" : "Target sesi *"} value={target} onChange={e => setTarget(e.target.value)}
-            className={`w-full bg-zinc-800 text-white text-xs rounded-lg h-9 px-3 border ${!target && error ? 'field-error' : 'border-zinc-700'}`} />
+            className={`w-full bg-zinc-800 text-white text-xs rounded-xl h-10 px-3 border ${!target && error ? 'field-error' : 'border-zinc-700'}`} />
           {type === 'weight' && currentWeight && <p className="text-[10px] text-zinc-500">Saat ini: {currentWeight} kg</p>}
           {type === 'sessions' && totalSessions !== undefined && <p className="text-[10px] text-zinc-500">Saat ini: {totalSessions} sesi</p>}
           {error && <p className="field-error-msg">{error}</p>}
-          <button onClick={add} className="w-full bg-[#c3f400] text-black font-bold text-xs py-2.5 rounded-xl">Tambah Goal</button>
+          <button onClick={add} className="w-full bg-[#c3f400] text-black font-bold text-xs h-10 rounded-xl">Tambah Goal</button>
         </div>
       )}
 

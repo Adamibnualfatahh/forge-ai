@@ -86,3 +86,28 @@ body.light .ai-glow, body.light .secondary-glow { box-shadow: 0 1px 4px rgba(0,0
 
 .field-error { border-color: #ef4444 !important; }
 .field-error-msg { color: #ef4444; font-size: 11px; margin-top: 4px; }
+
+/* ===== FORM INPUTS UI STANDARDIZATION ===== */
+@layer base {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]),
+  select,
+  textarea {
+    @apply focus:outline-none focus:ring-2 focus:ring-[#c3f400]/50 focus:border-[#c3f400] transition-colors placeholder:text-zinc-500;
+  }
+}
+
+/* Base style for forms to ensure safety and UX alignment */
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: #c3f400 !important;
+  box-shadow: 0 0 0 2px rgba(195, 244, 0, 0.4) !important;
+}
+
+body.light input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):focus,
+body.light select:focus,
+body.light textarea:focus {
+  border-color: #7a9900 !important;
+  box-shadow: 0 0 0 2px rgba(122, 153, 0, 0.3) !important;
+}
