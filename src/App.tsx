@@ -63,6 +63,9 @@ export default function App() {
   const [newProfileTargetWeight, setNewProfileTargetWeight] = useState("70");
   const [newProfileFocus, setNewProfileFocus] = useState("Full Body");
 
+  // Form error state
+  const [formError, setFormError] = useState("");
+
   // Navigation tab
   const [currentTab, setCurrentTab] = useState<'dashboard' | 'logger' | 'progress' | 'chat' | 'scanner'>('dashboard');
 
@@ -81,6 +84,11 @@ export default function App() {
   const [scannerError, setScannerError] = useState<string | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
 
+  // Saved gym equipment from scanner
+  const [gymEquipmentList, setGymEquipmentList] = useState<string[]>(() => {
+    try { return JSON.parse(localStorage.getItem('forge-gym-equipment') || '[]'); } catch { return []; }
+  });
+
   // Logs state
   const [logs, setLogs] = useState<WorkoutLog[]>([]);
 
@@ -92,6 +100,8 @@ export default function App() {
 
   useEffect(() => {
     document.body.classList.toggle('light', !darkMode);
+    document.documentElement.setAttribute('data-theme', darkMode ? 'dark' : 'light');
+    document.documentElement.style.colorScheme = darkMode ? 'dark' : 'light';
     localStorage.setItem('forge-theme', darkMode ? 'dark' : 'light');
   }, [darkMode]);
 
@@ -278,7 +288,10 @@ export default function App() {
   // Profiles Creation handler
   const handleCreateProfile = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newProfileName.trim()) return;
+    setFormError("");
+    if (!newProfileName.trim()) { setFormError("Nama wajib diisi"); return; }
+    if (!newProfileHeight || parseFloat(newProfileHeight) <= 0) { setFormError("Tinggi badan tidak valid"); return; }
+    if (!newProfileWeight || parseFloat(newProfileWeight) <= 0) { setFormError("Berat badan tidak valid"); return; }
 
     try {
       const res = await fetch("/api/profiles", {
@@ -288,41 +301,45 @@ export default function App() {
           name: newProfileName,
           height: parseFloat(newProfileHeight),
           weight: parseFloat(newProfileWeight),
-          target_weight: parseFloat(newProfileTargetWeight),
+          target_weight: parseFloat(newProfileTargetWeight) || parseFloat(newProfileWeight),
           focus_area: newProfileFocus
         })
       });
 
-      if (res.ok) {
-        const data = await res.json();
-        await fetchProfiles();
-        setActiveProfile(data);
-        setShowCreateDialog(false);
-        // Reset form
-        setNewProfileName("");
-        setNewProfileHeight("175");
-        setNewProfileWeight("75");
-        setNewProfileTargetWeight("70");
-        setNewProfileFocus("Full Body");
-      }
+      if (!res.ok) { setFormError("Gagal menyimpan profil. Coba lagi."); return; }
+      const data = await res.json();
+      await fetchProfiles();
+      setActiveProfile(data);
+      setShowCreateDialog(false);
+      setFormError("");
+      setNewProfileName("");
+      setNewProfileHeight("175");
+      setNewProfileWeight("75");
+      setNewProfileTargetWeight("70");
+      setNewProfileFocus("Full Body");
     } catch (err) {
-      console.error(err);
+      setFormError("Koneksi gagal. Periksa jaringan.");
     }
   };
 
   // Profile Edit handler
   const handleEditProfile = async () => {
     if (!activeProfile) return;
-    const res = await fetch(`/api/profiles/${activeProfile.id}`, {
-      method: "PUT", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: editProfileName, height: parseFloat(editProfileHeight), weight: parseFloat(editProfileWeight), target_weight: parseFloat(editProfileTarget), focus_area: activeProfile.focus_area || "Full Body" })
-    });
-    if (res.ok) {
+    setFormError("");
+    if (!editProfileName.trim()) { setFormError("Nama wajib diisi"); return; }
+    if (!editProfileHeight || parseFloat(editProfileHeight) <= 0) { setFormError("Tinggi tidak valid"); return; }
+    if (!editProfileWeight || parseFloat(editProfileWeight) <= 0) { setFormError("Berat tidak valid"); return; }
+    try {
+      const res = await fetch(`/api/profiles/${activeProfile.id}`, {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: editProfileName, height: parseFloat(editProfileHeight), weight: parseFloat(editProfileWeight), target_weight: parseFloat(editProfileTarget) || parseFloat(editProfileWeight), focus_area: activeProfile.focus_area || "Full Body" })
+      });
+      if (!res.ok) { setFormError("Gagal menyimpan perubahan"); return; }
       const updated = await res.json();
       setActiveProfile(updated);
       await fetchProfiles();
       setShowEditProfile(false);
-    }
+    } catch { setFormError("Koneksi gagal"); }
   };
 
   // Profile Delete handler
@@ -369,9 +386,9 @@ export default function App() {
         body: JSON.stringify({
           profileId: activeProfile.id,
           location: loggerLocation,
-          equipment: loggerEquipment,
+          equipment: [...loggerEquipment, ...gymEquipmentList],
           lastFocus: todayPlan?.focus || activeProfile.focus_area,
-          gymCompleteness: loggerEquipment.length >= 4 ? "full gym" : "limited",
+          gymCompleteness: (loggerEquipment.length + gymEquipmentList.length) >= 4 ? "full gym" : "limited",
           targetFocus: loggerPlanFocus
         })
       });
@@ -537,9 +554,25 @@ export default function App() {
     setScannerError(null);
   };
 
+  const saveEquipmentToGym = (name: string) => {
+    if (!name || gymEquipmentList.includes(name)) return;
+    const updated = [...gymEquipmentList, name];
+    setGymEquipmentList(updated);
+    localStorage.setItem('forge-gym-equipment', JSON.stringify(updated));
+  };
+
+  const removeGymEquipment = (name: string) => {
+    const updated = gymEquipmentList.filter(e => e !== name);
+    setGymEquipmentList(updated);
+    localStorage.setItem('forge-gym-equipment', JSON.stringify(updated));
+  };
+
   // Save manual/custom workout log
   const handleSaveWorkoutLog = async () => {
     if (!activeProfile) return;
+    if (loggerExercises.length === 0) { setFormError("Tambahkan minimal 1 gerakan"); return; }
+    if (!loggerDate) { setFormError("Tanggal wajib diisi"); return; }
+    setFormError("");
     
     try {
       const res = await fetch(`/api/profiles/${activeProfile.id}/logs`, {
@@ -554,21 +587,17 @@ export default function App() {
         })
       });
 
-      if (res.ok) {
-        alert("Workout berhasil disimpan! 🔥");
-        // Refresh logs and client profile
-        await fetchLogs(activeProfile.id);
-        await fetchProfiles();
-        // Update local active profile counters to match
-        setActiveProfile(prev => prev ? {
-          ...prev,
-          total_sessions: prev.total_sessions + 1,
-          streak: prev.streak + 1
-        } : null);
-        setCurrentTab('dashboard');
-      }
+      if (!res.ok) { setFormError("Gagal menyimpan workout. Coba lagi."); return; }
+      await fetchLogs(activeProfile.id);
+      await fetchProfiles();
+      setActiveProfile(prev => prev ? {
+        ...prev,
+        total_sessions: prev.total_sessions + 1,
+        streak: prev.streak + 1
+      } : null);
+      setCurrentTab('dashboard');
     } catch (err) {
-      console.error(err);
+      setFormError("Koneksi gagal. Periksa jaringan.");
     }
   };
 
@@ -1259,6 +1288,7 @@ export default function App() {
                     />
                   </div>
 
+                  {formError && <p className="field-error-msg text-center">{formError}</p>}
                   <button 
                     type="submit" 
                     className="w-full bg-[#c3f400] hover:bg-[#abd600] text-black font-display font-bold py-3 px-4 rounded-xl shadow-[0_4px_15px_rgba(195,244,0,0.2)] transition-opacity"
@@ -1513,6 +1543,61 @@ export default function App() {
               {/* CALENDAR VIEW */}
               {renderCalendar()}
 
+              {/* TODAY'S PLAN & NUTRITION */}
+              <div className="bg-[#121212] rounded-2xl p-5 border border-zinc-800 space-y-4">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-display font-bold text-white text-sm">Plan Hari Ini</h4>
+                  <button onClick={generateWorkoutPlan} disabled={isGeneratingWorkoutPlan}
+                    className="text-[11px] text-[#c3f400] font-bold flex items-center gap-1 disabled:opacity-50">
+                    <Sparkles className="w-3.5 h-3.5" /> {isGeneratingWorkoutPlan ? "..." : "Refresh"}
+                  </button>
+                </div>
+                {todayPlan && (
+                  <div className="space-y-2">
+                    {todayPlan.exercises.slice(0, 4).map((ex, i) => (
+                      <div key={i} className="flex justify-between items-center text-xs">
+                        <span className="text-zinc-300">{ex.name}</span>
+                        <span className="text-zinc-500">{ex.sets}×{ex.reps}</span>
+                      </div>
+                    ))}
+                    {todayPlan.exercises.length > 4 && (
+                      <span className="text-[10px] text-zinc-500">+{todayPlan.exercises.length - 4} gerakan lagi</span>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* DAILY NUTRITION GUIDE */}
+              {latestRecomp && (
+                <div className="bg-[#121212] rounded-2xl p-5 border border-zinc-800 space-y-3">
+                  <h4 className="font-display font-bold text-white text-sm">Target Nutrisi Harian</h4>
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="bg-zinc-900 rounded-xl p-3 text-center">
+                      <span className="text-lg font-bold text-white block">{latestRecomp.calories}</span>
+                      <span className="text-[10px] text-zinc-500">Kcal</span>
+                    </div>
+                    <div className="bg-zinc-900 rounded-xl p-3 text-center">
+                      <span className="text-lg font-bold text-[#a6e6ff] block">{latestRecomp.protein}g</span>
+                      <span className="text-[10px] text-zinc-500">Protein</span>
+                    </div>
+                    <div className="bg-zinc-900 rounded-xl p-3 text-center">
+                      <span className="text-lg font-bold text-[#c3f400] block">{latestRecomp.focus_type === 'Caloric Deficit' ? 'Deficit' : latestRecomp.focus_type === 'Surplus' ? 'Surplus' : 'Maintain'}</span>
+                      <span className="text-[10px] text-zinc-500">Strategi</span>
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-zinc-500 leading-relaxed">
+                    {latestRecomp.focus_type === 'Caloric Deficit' 
+                      ? `Fokus defisit ~300-500 kcal. Prioritaskan protein ${latestRecomp.protein}g/hari untuk jaga massa otot.`
+                      : latestRecomp.focus_type === 'Surplus'
+                      ? `Surplus 300-500 kcal di atas TDEE. Pastikan ${latestRecomp.protein}g protein untuk growth.`
+                      : `Makan sesuai TDEE. ${latestRecomp.protein}g protein untuk rekomposisi tubuh optimal.`}
+                  </p>
+                </div>
+              )}
+
+              {/* Goals quick view */}
+              {activeProfile && <GoalSetting profileId={activeProfile.id} currentWeight={activeProfile.weight} totalSessions={activeProfile.total_sessions} />}
+
               {/* RECENT GYM LOGS HISTORY */}
               <div className="space-y-4">
                 <h3 className="font-display text-xl font-bold text-white tracking-tight flex items-center gap-2">
@@ -1542,7 +1627,7 @@ export default function App() {
                                 </span>
                                 <h4 className="font-display text-md font-bold text-white mt-1.5">{log.focus}</h4>
                                 <p className="font-sans text-xs text-[#c4c9ac] mt-1">
-                                  <strong>{log.exercises?.length || 0} gerakan</strong> direkam ({log.equipment})
+                                  <strong>{log.exercises?.length || 0} gerakan</strong> direkam
                                 </p>
                               </div>
                             </div>
@@ -2023,6 +2108,7 @@ export default function App() {
               )}
 
               {/* SAVE FINISHED DATA TRIGGER */}
+              {formError && currentTab === 'logger' && <p className="field-error-msg text-center">{formError}</p>}
               <button 
                 onClick={handleSaveWorkoutLog}
                 disabled={loggerExercises.length === 0}
@@ -2203,7 +2289,7 @@ export default function App() {
               <ProgressiveOverload logs={logs} />
 
               {/* Goal Setting */}
-              {activeProfile && <GoalSetting profileId={activeProfile.id} />}
+              {activeProfile && <GoalSetting profileId={activeProfile.id} currentWeight={activeProfile.weight} totalSessions={activeProfile.total_sessions} />}
 
               {/* CSV Export */}
               <button onClick={handleExportCSV}
@@ -2473,6 +2559,15 @@ export default function App() {
                             ))}
                           </div>
                         </div>
+
+                        {/* Save to gym equipment */}
+                        <button
+                          onClick={() => saveEquipmentToGym(scannerResult.name)}
+                          disabled={gymEquipmentList.includes(scannerResult.name)}
+                          className="w-full bg-[#c3f400] text-black font-bold py-2.5 rounded-xl text-xs disabled:opacity-40 disabled:cursor-default mt-2"
+                        >
+                          {gymEquipmentList.includes(scannerResult.name) ? '✓ Sudah di Gym List' : '+ Tambah ke Gym List'}
+                        </button>
                       </div>
                     </div>
                   ) : scannerError ? (
@@ -2500,6 +2595,46 @@ export default function App() {
                   )}
                 </div>
               </div>
+
+              {/* Gym Equipment List */}
+              <div className="bg-[#121212] rounded-2xl p-5 border border-zinc-800 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-display font-bold text-white text-sm">Alat di Gym Saya</h4>
+                  <span className="text-[10px] text-zinc-500">{gymEquipmentList.length} alat</span>
+                </div>
+                {gymEquipmentList.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {gymEquipmentList.map(eq => (
+                      <span key={eq} className="inline-flex items-center gap-1 bg-zinc-900 border border-zinc-800 rounded-lg px-2.5 py-1.5 text-[11px] text-zinc-300">
+                        {eq}
+                        <button onClick={() => removeGymEquipment(eq)} className="text-zinc-600 hover:text-red-400 ml-0.5">×</button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="Tambah alat manual..."
+                    id="manual-equip-input"
+                    className="flex-1 bg-zinc-900 border border-zinc-800 rounded-xl h-10 px-3 text-xs text-white"
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') {
+                        const input = e.currentTarget;
+                        if (input.value.trim()) { saveEquipmentToGym(input.value.trim()); input.value = ''; }
+                      }
+                    }}
+                  />
+                  <button
+                    onClick={() => {
+                      const input = document.getElementById('manual-equip-input') as HTMLInputElement;
+                      if (input?.value.trim()) { saveEquipmentToGym(input.value.trim()); input.value = ''; }
+                    }}
+                    className="bg-[#c3f400] text-black font-bold px-4 rounded-xl text-xs"
+                  >+</button>
+                </div>
+                <p className="text-[10px] text-zinc-600">List ini digunakan saat generate plan latihan</p>
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
@@ -2518,7 +2653,7 @@ export default function App() {
           }`}
         >
           <Activity className="w-5 sm:w-5.5 h-5 sm:h-5.5" />
-          <span className="text-[9px] sm:text-[10px] uppercase font-bold tracking-wider mt-1 block">Dashboard</span>
+          <span className="text-[9px] sm:text-[10px] uppercase font-bold tracking-wider mt-1 block">Home</span>
         </button>
 
         {/* Tab 2: Logger */}
@@ -2596,6 +2731,7 @@ export default function App() {
                 </div>
                 <input type="number" value={editProfileTarget} onChange={e => setEditProfileTarget(e.target.value)} placeholder="Target Berat (kg)"
                   className="w-full bg-[#131313] dark-input border border-zinc-700 rounded-xl h-11 px-3 text-white text-sm" />
+                {formError && showEditProfile && <p className="field-error-msg text-center">{formError}</p>}
                 <button onClick={handleEditProfile}
                   className="w-full bg-[#c3f400] text-black font-display font-bold py-3 rounded-xl">Simpan Perubahan</button>
                 <div className="border-t border-zinc-800 pt-3">

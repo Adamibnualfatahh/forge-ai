@@ -2,14 +2,10 @@
 @import "tailwindcss";
 
 @theme {
-  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "SF Pro Text", ui-sans-serif, system-ui, sans-serif;
-  --font-display: "Sora", -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif;
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Sora", -apple-system, BlinkMacSystemFont, sans-serif;
   --color-brand-primary: #c3f400;
   --color-brand-secondary: #a6e6ff;
-  --color-brand-surface: #131313;
-  --color-brand-surface-card: #201f1f;
-  --radius-custom-lg: 1rem;
-  --radius-custom-xl: 1.5rem;
 }
 
 @layer base {
@@ -18,52 +14,75 @@
     color: #e5e2e1;
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
     -webkit-tap-highlight-color: transparent;
     overscroll-behavior: none;
   }
-  /* iOS 26 Light mode */
-  body.light {
-    background-color: #f5f5f7;
-    color: #1d1d1f;
-  }
-  body.light .dark-card { background-color: #ffffff; border-color: #e5e5ea; }
-  body.light .dark-text { color: #1d1d1f; }
-  body.light .dark-subtext { color: #6e6e73; }
-  body.light .dark-border { border-color: #e5e5ea; }
-  body.light .dark-input { background-color: #f2f2f7; color: #1d1d1f; border-color: #d1d1d6; }
-  body.light .dark-nav { background-color: rgba(255,255,255,0.85); border-color: #e5e5ea; }
 }
 
+/* ===== LIGHT MODE ===== */
+body.light {
+  background-color: #f2f2f7 !important;
+  color: #1c1c1e !important;
+}
+body.light div, body.light main, body.light section, body.light nav, body.light header, body.light footer {
+  border-color: #e5e5ea;
+}
+body.light input, body.light select, body.light textarea {
+  background-color: #f2f2f7 !important;
+  color: #1c1c1e !important;
+  border-color: #d1d1d6 !important;
+}
+body.light button { border-color: #e5e5ea; }
+
+/* Panels & cards in light */
+body.light div[class*="bg-[#0"] { background-color: #f2f2f7 !important; }
+body.light div[class*="bg-[#1"] { background-color: #ffffff !important; }
+body.light div[class*="bg-[#2"] { background-color: #ffffff !important; }
+body.light nav[class*="bg-[#1"] { background-color: rgba(255,255,255,0.92) !important; }
+body.light header[class*="bg-[#1"] { background-color: rgba(255,255,255,0.92) !important; }
+body.light div[class*="bg-zinc-9"] { background-color: #f2f2f7 !important; }
+body.light div[class*="bg-zinc-8"] { background-color: #e5e5ea !important; }
+body.light span[class*="bg-zinc-9"] { background-color: #f2f2f7 !important; }
+body.light span[class*="bg-zinc-8"] { background-color: #e5e5ea !important; }
+body.light button[class*="bg-zinc-9"] { background-color: #f2f2f7 !important; }
+body.light button[class*="bg-zinc-8"] { background-color: #e5e5ea !important; }
+
+/* Text in light */
+body.light h1, body.light h2, body.light h3, body.light h4, body.light h5 { color: #1c1c1e !important; }
+body.light p[class*="text-zinc"], body.light span[class*="text-zinc"] { color: #6e6e73 !important; }
+body.light span[class*="text-white"], body.light h4[class*="text-white"], body.light h3[class*="text-white"], body.light h2[class*="text-white"] { color: #1c1c1e !important; }
+body.light div[class*="text-white"] { color: #1c1c1e !important; }
+body.light span[class*="text-[#e5e2e1]"], body.light div[class*="text-[#e5e2e1]"] { color: #1c1c1e !important; }
+body.light span[class*="text-[#c4c9ac]"], body.light p[class*="text-[#c4c9ac]"] { color: #6e6e73 !important; }
+
+/* Keep accent colors */
+body.light span[class*="text-[#c3f400]"] { color: #5a7a00 !important; }
+body.light button[class*="bg-[#c3f400]"] { background-color: #c3f400 !important; color: #000 !important; }
+
+/* Borders in light */
+body.light div[class*="border-zinc"], body.light div[class*="border-[#2"], body.light div[class*="border-[#4"] { border-color: #e5e5ea !important; }
+
+/* Fixed modals backdrop stays dark */
+body.light div[class*="bg-black/8"] { background-color: rgba(0,0,0,0.5) !important; }
+
+/* ===== UTILITIES ===== */
 .ai-glow { box-shadow: 0 0 20px rgba(195, 244, 0, 0.12); }
 .secondary-glow { box-shadow: 0 0 20px rgba(166, 230, 255, 0.12); }
+body.light .ai-glow, body.light .secondary-glow { box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
 
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
-/* iOS 26 optimized - iPhone 13/15 (390px width) */
-@supports (padding: env(safe-area-inset-top)) {
-  .ios-safe-top { padding-top: env(safe-area-inset-top); }
-  .ios-safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
-}
-
-/* iOS 26 style materials/glass */
 .ios-glass {
   backdrop-filter: blur(20px) saturate(180%);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
 }
 
-/* iOS 26 spring animations */
-@keyframes ios-spring {
-  0% { transform: scale(0.95); opacity: 0; }
-  60% { transform: scale(1.02); }
-  100% { transform: scale(1); opacity: 1; }
-}
-.ios-appear { animation: ios-spring 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
-
-/* Timer ring animation */
 @keyframes timer-pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.6; }
 }
 .timer-pulse { animation: timer-pulse 1s ease-in-out infinite; }
+
+.field-error { border-color: #ef4444 !important; }
+.field-error-msg { color: #ef4444; font-size: 11px; margin-top: 4px; }
