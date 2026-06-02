@@ -2,42 +2,68 @@
 @import "tailwindcss";
 
 @theme {
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
-  --font-display: "Sora", sans-serif;
-  
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "SF Pro Text", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Sora", -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif;
   --color-brand-primary: #c3f400;
   --color-brand-secondary: #a6e6ff;
   --color-brand-surface: #131313;
   --color-brand-surface-card: #201f1f;
-  
   --radius-custom-lg: 1rem;
   --radius-custom-xl: 1.5rem;
 }
 
-/* Base custom definitions */
 @layer base {
   body {
-    background-color: #0d0d0d;
+    background-color: #0a0a0a;
     color: #e5e2e1;
     font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior: none;
   }
+  /* iOS 26 Light mode */
+  body.light {
+    background-color: #f5f5f7;
+    color: #1d1d1f;
+  }
+  body.light .dark-card { background-color: #ffffff; border-color: #e5e5ea; }
+  body.light .dark-text { color: #1d1d1f; }
+  body.light .dark-subtext { color: #6e6e73; }
+  body.light .dark-border { border-color: #e5e5ea; }
+  body.light .dark-input { background-color: #f2f2f7; color: #1d1d1f; border-color: #d1d1d6; }
+  body.light .dark-nav { background-color: rgba(255,255,255,0.85); border-color: #e5e5ea; }
 }
 
-/* Custom visual styles */
-.ai-glow {
-  box-shadow: 0 0 20px rgba(195, 244, 0, 0.12);
+.ai-glow { box-shadow: 0 0 20px rgba(195, 244, 0, 0.12); }
+.secondary-glow { box-shadow: 0 0 20px rgba(166, 230, 255, 0.12); }
+
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* iOS 26 optimized - iPhone 13/15 (390px width) */
+@supports (padding: env(safe-area-inset-top)) {
+  .ios-safe-top { padding-top: env(safe-area-inset-top); }
+  .ios-safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
 }
 
-.secondary-glow {
-  box-shadow: 0 0 20px rgba(166, 230, 255, 0.12);
+/* iOS 26 style materials/glass */
+.ios-glass {
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
 }
 
-/* Hide scrollbars elegantly */
-.no-scrollbar::-webkit-scrollbar {
-  display: none;
+/* iOS 26 spring animations */
+@keyframes ios-spring {
+  0% { transform: scale(0.95); opacity: 0; }
+  60% { transform: scale(1.02); }
+  100% { transform: scale(1); opacity: 1; }
 }
-.no-scrollbar {
-  -ms-overflow-style: none; /* IE and Edge */
-  scrollbar-width: none; /* Firefox */
-}
+.ios-appear { animation: ios-spring 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
 
+/* Timer ring animation */
+@keyframes timer-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+.timer-pulse { animation: timer-pulse 1s ease-in-out infinite; }

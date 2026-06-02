@@ -36,7 +36,7 @@ export interface WorkoutLog {
   date: string;
   focus: string;
   location: string;
-  equipment: string; // Comma separated or array in code
+  equipment: string;
   exercises: Exercise[];
 }
 
@@ -59,4 +59,33 @@ export interface ChatMessage {
   sender: 'user' | 'assistant';
   message: string;
   timestamp: number;
+}
+
+export interface WeightEntry {
+  id: string;
+  profile_id: string;
+  weight: number;
+  date: string;
+  timestamp: number;
+}
+
+export interface WorkoutTemplate {
+  id: string;
+  profile_id: string;
+  name: string;
+  focus: string;
+  exercises: Exercise[];
+  created_at: number;
+}
+
+export interface Goal {
+  id: string;
+  profile_id: string;
+  type: string;
+  target_value: number;
+  current_value: number;
+  target_date: string;
+  description: string;
+  completed: number;
+  created_at: number;
 }

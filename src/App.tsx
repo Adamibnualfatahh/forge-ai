@@ -37,10 +37,18 @@ import {
   ArrowUp,
   ArrowDown,
   Camera,
-  Upload
+  Upload,
+  Sun,
+  Moon,
+  Download
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Profile, Exercise, WorkoutLog, RecompAnalysis, ChatMessage } from "./types";
+import RestTimer from "./RestTimer";
+import WeightChart from "./WeightChart";
+import WorkoutTemplates from "./WorkoutTemplates";
+import GoalSetting from "./GoalSetting";
+import ProgressiveOverload from "./ProgressiveOverload";
 
 export default function App() {
   // Profiles state
@@ -75,6 +83,26 @@ export default function App() {
 
   // Logs state
   const [logs, setLogs] = useState<WorkoutLog[]>([]);
+
+  // Dark/Light mode
+  const [darkMode, setDarkMode] = useState(() => {
+    const stored = localStorage.getItem('forge-theme');
+    return stored ? stored === 'dark' : true;
+  });
+
+  useEffect(() => {
+    document.body.classList.toggle('light', !darkMode);
+    localStorage.setItem('forge-theme', darkMode ? 'dark' : 'light');
+  }, [darkMode]);
+
+  // Profile Edit/Delete
+  const [showEditProfile, setShowEditProfile] = useState(false);
+  const [editProfileName, setEditProfileName] = useState("");
+  const [editProfileHeight, setEditProfileHeight] = useState("");
+  const [editProfileWeight, setEditProfileWeight] = useState("");
+  const [editProfileTarget, setEditProfileTarget] = useState("");
+  const [editProfileFocus, setEditProfileFocus] = useState("");
+  const [confirmDeleteProfile, setConfirmDeleteProfile] = useState(false);
   
   // Active/Generated workout plan state
   const [todayPlan, setTodayPlan] = useState<{ focus: string; exercises: Exercise[] } | null>(null);
@@ -282,6 +310,53 @@ export default function App() {
     }
   };
 
+  // Profile Edit handler
+  const handleEditProfile = async () => {
+    if (!activeProfile) return;
+    const res = await fetch(`/api/profiles/${activeProfile.id}`, {
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: editProfileName, height: parseFloat(editProfileHeight), weight: parseFloat(editProfileWeight), target_weight: parseFloat(editProfileTarget), focus_area: activeProfile.focus_area || "Full Body" })
+    });
+    if (res.ok) {
+      const updated = await res.json();
+      setActiveProfile(updated);
+      await fetchProfiles();
+      setShowEditProfile(false);
+    }
+  };
+
+  // Profile Delete handler
+  const handleDeleteProfile = async () => {
+    if (!activeProfile) return;
+    await fetch(`/api/profiles/${activeProfile.id}`, { method: "DELETE" });
+    setActiveProfile(null);
+    setConfirmDeleteProfile(false);
+    await fetchProfiles();
+  };
+
+  // Open edit profile dialog
+  const openEditProfile = () => {
+    if (!activeProfile) return;
+    setEditProfileName(activeProfile.name);
+    setEditProfileHeight(String(activeProfile.height));
+    setEditProfileWeight(String(activeProfile.weight));
+    setEditProfileTarget(String(activeProfile.target_weight));
+    setEditProfileFocus(activeProfile.focus_area);
+    setShowEditProfile(true);
+  };
+
+  // CSV Export
+  const handleExportCSV = () => {
+    if (!activeProfile) return;
+    window.open(`/api/profiles/${activeProfile.id}/export-csv`, '_blank');
+  };
+
+  // Apply template to logger
+  const applyTemplate = (focus: string, exercises: Exercise[]) => {
+    setLoggerExercises(exercises);
+    setTodayPlan({ focus, exercises });
+  };
+
   // Generator workout plan based on current logger setup
   const generateWorkoutPlan = async () => {
     if (!activeProfile) return;
@@ -480,7 +555,7 @@ export default function App() {
       });
 
       if (res.ok) {
-        alert("Workout log berhasil direkam ke database Turso! 🔥 Sempurna!");
+        alert("Workout berhasil disimpan! 🔥");
         // Refresh logs and client profile
         await fetchLogs(activeProfile.id);
         await fetchProfiles();
@@ -530,7 +605,7 @@ export default function App() {
       });
 
       if (res.ok) {
-        alert(`Selamat Coach! Sesi '${todayPlan.focus}' berhasil ditaklukkan & dicatat di Turso DB! Keep moving forward! 🏆🏋️‍♂️`);
+        alert(`Sesi '${todayPlan.focus}' selesai & tersimpan! 🏆`);
         setIsActivelyTraining(false);
         setCompletedExercises({});
         await fetchLogs(activeProfile.id);
@@ -1062,7 +1137,7 @@ export default function App() {
               <Dumbbell className="text-[#c3f400] w-8 h-8" />
             </div>
             <h1 className="font-display text-4xl sm:text-5xl font-extrabold tracking-tighter text-white mb-3">FORGE AI</h1>
-            <p className="font-sans text-lg text-[#c4c9ac] max-w-md mx-auto">Seleksi profil kinerjamu atau buat profil baru untuk memulai program.</p>
+            <p className="font-sans text-base text-zinc-400 max-w-md mx-auto">Pilih profil untuk melanjutkan</p>
           </header>
 
           {/* Profiles Selection Grid */}
@@ -1070,7 +1145,7 @@ export default function App() {
             {profiles.length === 0 ? (
               // Loading fallback
               <div className="col-span-2 text-center text-[#c4c9ac]">
-                <RefreshCw className="animate-spin inline-block mr-2 text-[#c3f400]" /> Memuat database Turso...
+                <RefreshCw className="animate-spin inline-block mr-2 text-[#c3f400]" /> Memuat...
               </div>
             ) : (
               profiles.map((profile) => (
@@ -1100,7 +1175,7 @@ export default function App() {
                   </p>
 
                   <div className="mt-4 flex items-center justify-center gap-2 font-display text-xs font-semibold text-[#c3f400] opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300">
-                    <span>INITIATE SEQUENCE</span>
+                    <span>Pilih Profil</span>
                     <ArrowRight className="w-3.5 h-3.5" />
                   </div>
                 </motion.button>
@@ -1114,7 +1189,7 @@ export default function App() {
             className="font-sans text-sm font-semibold text-[#c4c9ac] hover:text-white transition-colors flex items-center gap-2 px-6 py-3 rounded-full border border-zinc-800 hover:border-[#444933] bg-zinc-900/50 hover:bg-[#201f1f]"
           >
             <UserPlus className="w-4 h-4 text-[#c3f400]" />
-            CREATE NEW PROFIL KLIEN
+            Buat Profil Baru
           </button>
         </motion.div>
 
@@ -1136,7 +1211,7 @@ export default function App() {
                   <X className="w-5 h-5" />
                 </button>
 
-                <h3 className="font-display text-2xl font-bold tracking-tight text-white mb-4">Profil Klien Baru</h3>
+                <h3 className="font-display text-xl font-bold tracking-tight text-white mb-4">Profil Baru</h3>
                 <form onSubmit={handleCreateProfile} className="space-y-4">
                   <div>
                     <label className="block text-xs uppercase tracking-widest text-[#c4c9ac] font-bold mb-1">Nama Lengkap</label>
@@ -1173,37 +1248,22 @@ export default function App() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs uppercase tracking-widest text-[#c4c9ac] font-bold mb-1">Target Berat (kg)</label>
-                      <input 
-                        type="number" 
-                        required
-                        value={newProfileTargetWeight}
-                        onChange={(e) => setNewProfileTargetWeight(e.target.value)}
-                        className="w-full bg-[#131313] border border-zinc-700 rounded-lg h-11 px-3 text-white focus:outline-none focus:border-[#c3f400] transition-colors"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs uppercase tracking-widest text-[#c4c9ac] font-bold mb-1">Fokus Awal</label>
-                      <select 
-                        value={newProfileFocus}
-                        onChange={(e) => setNewProfileFocus(e.target.value)}
-                        className="w-full bg-[#131313] border border-zinc-700 rounded-lg h-11 px-2 text-white focus:outline-none focus:border-[#c3f400] transition-colors"
-                      >
-                        <option value="Push Plan">Push Day</option>
-                        <option value="Pull Plan">Pull Day</option>
-                        <option value="Legs Plan">Legs Day</option>
-                        <option value="Full Body">Full Body</option>
-                      </select>
-                    </div>
+                  <div>
+                    <label className="block text-xs uppercase tracking-widest text-[#c4c9ac] font-bold mb-1">Target Berat (kg)</label>
+                    <input 
+                      type="number" 
+                      required
+                      value={newProfileTargetWeight}
+                      onChange={(e) => setNewProfileTargetWeight(e.target.value)}
+                      className="w-full bg-[#131313] border border-zinc-700 rounded-lg h-11 px-3 text-white focus:outline-none focus:border-[#c3f400] transition-colors"
+                    />
                   </div>
 
                   <button 
                     type="submit" 
                     className="w-full bg-[#c3f400] hover:bg-[#abd600] text-black font-display font-bold py-3 px-4 rounded-xl shadow-[0_4px_15px_rgba(195,244,0,0.2)] transition-opacity"
                   >
-                    Simpan dan Jalankan Sequens
+                    Simpan Profil
                   </button>
                 </form>
               </motion.div>
@@ -1216,9 +1276,9 @@ export default function App() {
 
   // ---------------- MAIN INNER APPLICATION CANVAS ----------------
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-[#e5e2e1] flex flex-col font-sans select-none" id="applet-viewport">
+    <div className="min-h-screen bg-[#0a0a0a] text-[#e5e2e1] flex flex-col font-sans select-none" id="applet-viewport" style={{ maxWidth: '430px', margin: '0 auto' }}>
       {/* GLOBAL HEADER BAR */}
-      <header className="bg-[#121212]/95 backdrop-blur-md sticky top-0 z-40 border-b border-[#2c2c2c] pt-[max(env(safe-area-inset-top),16px)] pb-4 px-6 flex justify-between items-center outline-none">
+      <header className="ios-glass bg-[#121212]/80 dark-nav sticky top-0 z-40 border-b border-[#2c2c2c] dark-border pt-[env(safe-area-inset-top,16px)] pb-3 px-4 flex justify-between items-center">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-full overflow-hidden border border-zinc-800 hover:opacity-80 transition-opacity p-0.5" id="profile-trigger-avatar">
             <img 
@@ -1229,19 +1289,27 @@ export default function App() {
             />
           </div>
           <div className="flex flex-col">
-            <span className="font-display font-black text-white text-md tracking-tighter">FORGE AI</span>
-            <span className="font-mono text-[9px] text-[#c4c9ac] uppercase font-bold tracking-widest">{activeProfile.name} Coached</span>
+            <span className="font-display font-bold text-white text-sm tracking-tight">{activeProfile.name}</span>
+            <span className="font-sans text-[10px] text-zinc-500">{activeProfile.focus_area || 'Training'}</span>
           </div>
         </div>
 
         {/* Swap Profile Settings trigger button */}
         <div className="flex gap-2">
+          <button onClick={() => setDarkMode(!darkMode)}
+            className="p-2 rounded-lg border border-zinc-800 dark-border bg-zinc-900/60 dark-card text-zinc-300 hover:text-white transition-all">
+            {darkMode ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
+          </button>
+          <button onClick={openEditProfile}
+            className="p-2 rounded-lg border border-zinc-800 dark-border bg-zinc-900/60 dark-card text-zinc-300 hover:text-white transition-all">
+            <Settings className="w-3.5 h-3.5" />
+          </button>
           <button 
             onClick={() => setActiveProfile(null)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-zinc-800 bg-zinc-900/60 hover:bg-[#201f1f] text-xs font-semibold text-zinc-300 hover:text-white transition-all scale-down active:scale-95"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-zinc-800 dark-border bg-zinc-900/60 dark-card hover:bg-[#201f1f] text-xs font-semibold text-zinc-300 hover:text-white transition-all scale-down active:scale-95"
           >
             <RefreshCw className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Ganti Client</span>
+            <span className="hidden sm:inline">Ganti</span>
           </button>
         </div>
       </header>
@@ -1263,18 +1331,13 @@ export default function App() {
               {/* Hello Welcome and Current Date Panel */}
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                 <div>
-                  <h2 className="font-display text-3xl font-extrabold text-white tracking-tight">Halo, {activeProfile.name}!</h2>
+                  <h2 className="font-display text-2xl font-bold text-white tracking-tight">Halo, {activeProfile.name}</h2>
                   <p className="font-sans text-sm text-[#c4c9ac] mt-1 flex items-center gap-1.5">
                     <Calendar className="w-4 h-4 text-[#c3f400]" />
                     {new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
                   </p>
                 </div>
                 {/* Visual state badges */}
-                <div className="flex gap-2">
-                  <span className="inline-flex items-center px-2.5 py-1 rounded bg-[#c3f400]/15 text-[#c3f400] border border-[#c3f400]/40 text-xs font-bold leading-none uppercase tracking-wider">
-                    {activeProfile.focus_area} Mode
-                  </span>
-                </div>
               </div>
 
               {/* BENTO STATS CARDS GRID */}
@@ -1333,9 +1396,9 @@ export default function App() {
                       <span className="text-xs font-mono uppercase tracking-widest text-[#c4c9ac] font-bold">Fokus Hari Ini</span>
                       <h3 className="font-display text-2xl font-black text-white">{todayPlan?.focus || "Custom Plan"}</h3>
                     </div>
-                    <span className="bg-[#c3f400]/15 text-[#c3f400] border border-[#c3f400]/30 text-[10px] font-extrabold uppercase tracking-widest px-2.5 py-1 rounded-full flex items-center gap-1">
+                    <span className="bg-[#c3f400]/15 text-[#c3f400] border border-[#c3f400]/30 text-[10px] font-bold px-2.5 py-1 rounded-full flex items-center gap-1">
                       <Zap className="w-3.5 h-3.5 fill-[#c3f400]" />
-                      PLAN GENERATED
+                      Ready
                     </span>
                   </div>
 
@@ -1356,7 +1419,7 @@ export default function App() {
                       className="flex-1 bg-[#c3f400] hover:bg-[#abd600] text-black font-display font-extrabold py-4 px-4 rounded-xl flex items-center justify-center gap-2 transition-all shadow-[0_4px_20px_rgba(195,244,0,0.3)] hover:scale-[1.01] active:scale-95"
                     >
                       <CheckCircle2 className="w-5 h-5 fill-black/10" />
-                      MULAI WORKOUT SEKARANG
+                      Mulai Workout
                     </button>
                     <button 
                       onClick={() => {
@@ -1378,7 +1441,7 @@ export default function App() {
                 >
                   <div className="flex justify-between items-center mb-6 border-b border-zinc-800 pb-4">
                     <div>
-                      <span className="text-[10px] uppercase font-bold tracking-widest text-[#c3f400]">ACTIVE WORKOUT SESSION...</span>
+                      <span className="text-[10px] uppercase font-semibold tracking-wide text-[#c3f400]">Sedang Latihan</span>
                       <h3 className="font-display text-2xl font-black text-white">{todayPlan?.focus}</h3>
                     </div>
                     <button 
@@ -1425,6 +1488,9 @@ export default function App() {
                     ))}
                   </div>
 
+                  {/* Rest Timer */}
+                  <RestTimer />
+
                   {/* Actions checklist bar */}
                   <div className="flex gap-3 items-center">
                     <button 
@@ -1432,7 +1498,7 @@ export default function App() {
                       className="flex-1 bg-[#c3f400] hover:bg-[#abd600] text-black font-display font-extrabold py-4 px-4 rounded-xl flex items-center justify-center gap-2 transition-all"
                     >
                       <Award className="w-5 h-5" />
-                      SIMPAN WORKOUT & INCREMENT SESSION
+                      Selesai & Simpan
                     </button>
                     <button 
                       onClick={() => setIsActivelyTraining(false)}
@@ -1568,8 +1634,7 @@ export default function App() {
               className="space-y-6"
             >
               <div className="flex justify-between items-center">
-                <h2 className="font-display text-3xl font-extrabold text-white tracking-tight">Kustomisasi & Catat Sesi</h2>
-                <span className="font-mono text-xs text-[#a6e6ff] uppercase tracking-widest">{activeProfile.name} Logbook</span>
+                <h2 className="font-display text-2xl font-extrabold text-white tracking-tight">Catat Sesi</h2>
               </div>
 
               {/* Form parameters */}
@@ -1663,7 +1728,7 @@ export default function App() {
                     className="w-full bg-zinc-900 border border-zinc-800 hover:border-[#444933] text-[#c3f400] hover:text-[#c3f400]/80 font-display font-black py-3.5 px-4 rounded-xl flex items-center justify-center gap-1.5 transition-all text-sm scale-down active:scale-95 disabled:opacity-50"
                   >
                     <Sparkles className="w-4.5 h-4.5" />
-                    {isGeneratingWorkoutPlan ? "MEN-GENERATE JADWAL LATIHAN VIA GEMINI..." : "GENERATE JADWAL LATIHAN BARU SEKARANG"}
+                    {isGeneratingWorkoutPlan ? "Generating..." : "Generate Plan Baru"}
                   </button>
                 </div>
               </div>
@@ -1947,6 +2012,16 @@ export default function App() {
                 </div>
               </div>
 
+              {/* Workout Templates */}
+              {activeProfile && (
+                <WorkoutTemplates
+                  profileId={activeProfile.id}
+                  onApply={applyTemplate}
+                  currentFocus={todayPlan?.focus}
+                  currentExercises={loggerExercises}
+                />
+              )}
+
               {/* SAVE FINISHED DATA TRIGGER */}
               <button 
                 onClick={handleSaveWorkoutLog}
@@ -1954,7 +2029,7 @@ export default function App() {
                 className="w-full bg-[#c3f400] text-black font-display font-black py-4 px-4 rounded-xl flex items-center justify-center gap-2 transition-all text-md shadow-[0_4px_15px_rgba(195,244,0,0.2)]"
               >
                 <CheckCircle2 className="w-5 h-5 fill-black/10" />
-                SIMPAN DAN REKAM WORKOUT KE TURSO DB
+                Simpan Workout
               </button>
             </motion.div>
           )}
@@ -1969,8 +2044,7 @@ export default function App() {
               className="space-y-6"
             >
               <div className="flex justify-between items-center">
-                <h2 className="font-display text-3xl font-extrabold text-white tracking-tight">Status & Analisa Recomp</h2>
-                <span className="font-sans text-xs text-zinc-500 uppercase tracking-widest">Client Metrics Log</span>
+                <h2 className="font-display text-2xl font-extrabold text-white tracking-tight">Progress & Recomp</h2>
               </div>
 
               {/* ACTIVE AI RECOMPOSITION MATRIX INSIGHT CARD */}
@@ -1982,20 +2056,20 @@ export default function App() {
                     <Sparkles className="w-6 h-6 fill-[#c3f400]" />
                   </div>
                   <div>
-                    <span className="font-mono text-[9px] uppercase font-bold tracking-widest text-[#c3f400]">AI Coach Nutrition Advisor</span>
-                    <h3 className="font-display text-2xl font-black text-white mt-0.5">Analisa Recomposisi Tubuh</h3>
+                    <span className="font-sans text-[10px] uppercase font-semibold tracking-wide text-zinc-500">Analisa Tubuh</span>
+                    <h3 className="font-display text-lg font-bold text-white mt-0.5">Rekomposisi Tubuh</h3>
                     
                     <p className="font-sans text-sm text-[#c4c9ac] leading-relaxed mt-2">
-                      {latestRecomp ? latestRecomp.analysis : "Input data metrik Tinggi Badan dan Berat Badan di bawah ini agar pelatih Forge AI bisa mengkalkulasi komposisi tubuh, target defisit/surplus kalori, serta asupan protein gila-gilaanmu!"}
+                      {latestRecomp ? latestRecomp.analysis : "Input tinggi dan berat badan untuk mendapatkan analisa komposisi tubuh, target kalori harian, dan kebutuhan proteinmu."}
                     </p>
                   </div>
                 </div>
 
                 {latestRecomp && (
-                  <div className="grid grid-cols-3 gap-2.5 border-t border-zinc-800/80 pt-4 mt-2">
-                    <div className="bg-[#131313] p-3 rounded-xl border border-zinc-800 text-center">
-                      <span className="text-[10px] text-[#c4c9ac] font-bold uppercase block tracking-wider">Fokus Strategi</span>
-                      <span className="text-sm font-extrabold font-display text-[#c3f400] uppercase block mt-1">{latestRecomp.focus_type}</span>
+                  <div className="grid grid-cols-3 gap-2 border-t border-zinc-800/80 pt-4 mt-2">
+                    <div className="bg-[#131313] p-3 rounded-xl border border-zinc-800 text-center overflow-hidden">
+                      <span className="text-[10px] text-[#c4c9ac] font-bold uppercase block tracking-wider">Strategi</span>
+                      <span className="text-[11px] font-bold font-display text-[#c3f400] block mt-1 truncate">{latestRecomp.focus_type}</span>
                     </div>
                     <div className="bg-[#131313] p-3 rounded-xl border border-zinc-800 text-center">
                       <span className="text-[10px] text-[#c4c9ac] font-bold uppercase block tracking-wider">Target Kalori</span>
@@ -2049,7 +2123,7 @@ export default function App() {
                       className="w-full bg-[#c3f400] text-black font-display font-black uppercase text-xs tracking-wider rounded-lg h-11 flex items-center justify-center gap-1.5 hover:opacity-90 transition-all disabled:opacity-50"
                     >
                       <Sparkles className="w-4 h-4 fill-black" />
-                      {isSubmittingRecomp ? "MENGALISA KOMPOSISI TUBUH..." : "LOG METRICS & GENERATE RECOMP"}
+                      {isSubmittingRecomp ? "Menganalisis..." : "Analisa Komposisi"}
                     </button>
                   </form>
                 </div>
@@ -2121,6 +2195,21 @@ export default function App() {
                 {/* Margin spacer */}
                 <div className="h-6"></div>
               </div>
+
+              {/* Weight History Chart */}
+              {activeProfile && <WeightChart profileId={activeProfile.id} />}
+
+              {/* Progressive Overload Tracking */}
+              <ProgressiveOverload logs={logs} />
+
+              {/* Goal Setting */}
+              {activeProfile && <GoalSetting profileId={activeProfile.id} />}
+
+              {/* CSV Export */}
+              <button onClick={handleExportCSV}
+                className="w-full bg-zinc-900 dark-card border border-zinc-800 dark-border text-zinc-300 dark-text font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-2 text-sm hover:bg-zinc-800 transition-colors">
+                <Download className="w-4 h-4 text-[#a6e6ff]" /> Export Data ke CSV
+              </button>
             </motion.div>
           )}
 
@@ -2136,14 +2225,14 @@ export default function App() {
               <div className="bg-[#121212] rounded-t-2xl border border-zinc-800 border-b-0 p-4 shrink-0 flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <div className="w-3.5 h-3.5 rounded-full bg-[#c3f400] animate-pulse"></div>
-                  <span className="font-display font-black text-sm text-white tracking-tight uppercase">Forge AI Chat Coach</span>
+                  <span className="font-display font-bold text-sm text-white tracking-tight">Chat Trainer</span>
                 </div>
-                <span className="font-sans text-[10px] font-semibold text-[#c4c9ac] uppercase bg-zinc-800 border border-zinc-700 rounded px-2 py-0.5">Bahasa Casual Active</span>
+                <span className="font-sans text-[10px] font-medium text-zinc-500">Online</span>
               </div>
 
               {/* Chat Thread Panel */}
               <div className="flex-1 bg-[#201f1f]/50 border border-zinc-850 overflow-y-auto p-4 space-y-4 no-scrollbar flex flex-col">
-                <div className="text-center font-mono text-[9px] font-bold text-zinc-500 uppercase tracking-widest my-2">Sequence Initiated</div>
+                <div className="text-center text-[10px] text-zinc-600 my-2">Hari ini</div>
 
                 {/* Default Greeting Message block */}
                 <div className="flex justify-start w-full gap-2.5">
@@ -2151,9 +2240,8 @@ export default function App() {
                     <Zap className="w-4 h-4 fill-black" />
                   </div>
                   <div className="max-w-[85%] bg-zinc-900 border border-zinc-800 text-[#e5e2e1] font-sans text-sm rounded-2xl rounded-tl-sm p-4 leading-relaxed relative ai-glow">
-                    Halo, <strong>{activeProfile.name}!</strong> Pelatih Forge AI di sini! 💪 
-                    Pelatih siap sedia memandu program <strong>{activeProfile.focus_area}</strong>, nutrisi diet penurun lemak, form squat, bicep curls, ataupun konsultasi asupan kalori proteinmu harian. 
-                    Ada yang ingin ditanyakan atau dikonsultasikan hari ini, Bro? Gaspol!
+                    Halo, <strong>{activeProfile.name}!</strong> 💪 
+                    Ada yang bisa dibantu soal program latihan, nutrisi, atau form exercise hari ini?
                   </div>
                 </div>
 
@@ -2190,7 +2278,7 @@ export default function App() {
                     <div className="w-7 h-7 rounded-full bg-[#a6e6ff] flex-shrink-0 flex items-center justify-center text-zinc-900 animate-spin">
                       <RefreshCw className="w-3.5 h-3.5" />
                     </div>
-                    <span className="text-xs font-sans text-zinc-500 italic">Forge AI sedang merancang saran kinerjamu...</span>
+                    <span className="text-xs font-sans text-zinc-500 italic">Mengetik...</span>
                   </div>
                 )}
 
@@ -2252,12 +2340,11 @@ export default function App() {
               className="space-y-6"
             >
               <div className="flex justify-between items-center">
-                <h2 className="font-display text-3xl font-extrabold text-white tracking-tight">Scanner Alat Gym</h2>
-                <span className="font-mono text-xs text-[#c3f400] uppercase tracking-widest bg-zinc-900 border border-zinc-800 px-2.5 py-1 rounded">Powered by Gemini AI</span>
+                <h2 className="font-display text-2xl font-extrabold text-white tracking-tight">Scanner Alat Gym</h2>
               </div>
 
-              <p className="text-sm text-zinc-400 max-w-xl leading-relaxed">
-                Unggah atau seret file foto alat gym/mesin fitness yang tidak kamu ketahui namanya. Trainer AI kami akan mengidentifikasi alat tersebut beserta fungsi utama, target otot harafiah, dan tata cara menggunakannya secara aman terlindung dari cedera.
+              <p className="text-sm text-zinc-400 leading-relaxed">
+                Foto alat gym yang ingin kamu ketahui. Kami akan identifikasi nama, target otot, dan cara pakainya.
               </p>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
@@ -2354,8 +2441,8 @@ export default function App() {
                       <div className="w-12 h-12 rounded-full border-2 border-t-[#c3f400] border-zinc-850 animate-spin flex items-center justify-center text-[#c3f400]">
                         <Zap className="w-5 h-5 animate-pulse" />
                       </div>
-                      <p className="font-display font-extrabold text-[#c3f400] text-sm tracking-wider uppercase animate-pulse">Menghubungkan ke Gemini 2.5</p>
-                      <p className="text-xs text-zinc-500 text-center max-w-[240px]">Mengidentifikasi detail mekanika alat dan biomekanika tubuh...</p>
+                      <p className="font-display font-bold text-[#c3f400] text-sm animate-pulse">Menganalisis...</p>
+                      <p className="text-xs text-zinc-500 text-center max-w-[240px]">Mengidentifikasi alat dan cara penggunaannya</p>
                     </div>
                   ) : scannerResult ? (
                     <div className="space-y-4 animate-fade-in flex-1 text-left">
@@ -2420,72 +2507,113 @@ export default function App() {
       </main>
 
       {/* FIXED BOTTOM NAVIGATION BAR SYSTEM */}
-      <nav className="fixed bottom-0 left-0 w-full bg-[#121212]/95 backdrop-blur-md border-t border-[#2c2c2c] pt-2 pb-[calc(env(safe-area-inset-bottom)+8px)] px-2 sm:px-6 flex justify-around items-center z-40">
+      <nav className="fixed bottom-0 left-0 w-full ios-glass bg-[#121212]/80 dark-nav border-t border-[#2c2c2c] dark-border pt-2 pb-[max(env(safe-area-inset-bottom),12px)] px-3 flex justify-around items-center z-40" style={{ maxWidth: '430px', margin: '0 auto', right: 0 }}>
         {/* Tab 1: Dashboard */}
         <button 
           onClick={() => setCurrentTab('dashboard')}
-          className={`flex flex-col items-center justify-center py-1.5 px-3 rounded-xl transition-all scale-down active:scale-90 ${
+          className={`flex flex-col items-center justify-center py-1.5 px-1 sm:px-3 rounded-xl transition-all scale-down active:scale-90 flex-1 sm:flex-none ${
             currentTab === 'dashboard' 
               ? "bg-[#c3f400] text-black shadow-[0_2px_10px_rgba(195,244,0,0.25)] font-bold" 
               : "text-zinc-500 hover:text-white"
           }`}
         >
-          <Activity className="w-5.5 h-5.5" />
-          <span className="text-[10px] uppercase font-bold tracking-wider mt-1 block">Dashboard</span>
+          <Activity className="w-5 sm:w-5.5 h-5 sm:h-5.5" />
+          <span className="text-[9px] sm:text-[10px] uppercase font-bold tracking-wider mt-1 block">Dashboard</span>
         </button>
 
         {/* Tab 2: Logger */}
         <button 
           onClick={() => setCurrentTab('logger')}
-          className={`flex flex-col items-center justify-center py-1.5 px-3 rounded-xl transition-all scale-down active:scale-90 ${
+          className={`flex flex-col items-center justify-center py-1.5 px-1 sm:px-3 rounded-xl transition-all scale-down active:scale-90 flex-1 sm:flex-none ${
             currentTab === 'logger' 
               ? "bg-[#c3f400] text-black shadow-[0_2px_10px_rgba(195,244,0,0.25)] font-bold" 
               : "text-zinc-500 hover:text-white"
           }`}
         >
-          <Dumbbell className="w-5.5 h-5.5" />
-          <span className="text-[10px] uppercase font-bold tracking-wider mt-1 block">Logger</span>
+          <Dumbbell className="w-5 sm:w-5.5 h-5 sm:h-5.5" />
+          <span className="text-[9px] sm:text-[10px] uppercase font-bold tracking-wider mt-1 block">Logger</span>
         </button>
 
         {/* Tab 3: Progress */}
         <button 
           onClick={() => setCurrentTab('progress')}
-          className={`flex flex-col items-center justify-center py-1.5 px-3 rounded-xl transition-all scale-down active:scale-90 ${
+          className={`flex flex-col items-center justify-center py-1.5 px-1 sm:px-3 rounded-xl transition-all scale-down active:scale-90 flex-1 sm:flex-none ${
             currentTab === 'progress' 
               ? "bg-[#c3f400] text-black shadow-[0_2px_10px_rgba(195,244,0,0.25)] font-bold" 
               : "text-zinc-500 hover:text-white"
           }`}
         >
-          <Scale className="w-5.5 h-5.5" />
-          <span className="text-[10px] uppercase font-bold tracking-wider mt-1 block">Recomp</span>
+          <Scale className="w-5 sm:w-5.5 h-5 sm:h-5.5" />
+          <span className="text-[9px] sm:text-[10px] uppercase font-bold tracking-wider mt-1 block">Recomp</span>
         </button>
 
         {/* Tab 4: AI Chat */}
         <button 
           onClick={() => setCurrentTab('chat')}
-          className={`flex flex-col items-center justify-center py-1.5 px-3 rounded-xl transition-all scale-down active:scale-90 ${
+          className={`flex flex-col items-center justify-center py-1.5 px-1 sm:px-3 rounded-xl transition-all scale-down active:scale-90 flex-1 sm:flex-none ${
             currentTab === 'chat' 
               ? "bg-[#c3f400] text-black shadow-[0_2px_10px_rgba(195,244,0,0.25)] font-bold" 
               : "text-zinc-500 hover:text-white"
           }`}
         >
-          <MessageSquare className="w-5.5 h-5.5" />
-          <span className="text-[10px] uppercase font-bold tracking-wider mt-1 block">Chat AI</span>
+          <MessageSquare className="w-5 sm:w-5.5 h-5 sm:h-5.5" />
+          <span className="text-[9px] sm:text-[10px] uppercase font-bold tracking-wider mt-1 block">Chat AI</span>
         </button>
 
         {/* Tab 5: Scanner */}
         <button 
           onClick={() => setCurrentTab('scanner')}
-          className={`flex flex-col items-center justify-center py-1.5 px-3 rounded-xl transition-all scale-down active:scale-90 ${
+          className={`flex flex-col items-center justify-center py-1.5 px-1 sm:px-3 rounded-xl transition-all scale-down active:scale-90 flex-1 sm:flex-none ${
             currentTab === 'scanner' 
               ? "bg-[#c3f400] text-black shadow-[0_2px_10px_rgba(195,244,0,0.25)] font-bold" 
               : "text-zinc-500 hover:text-white"
           }`}
         >
-          <Camera className="w-5.5 h-5.5" />
-          <span className="text-[10px] uppercase font-bold tracking-wider mt-1 block">Scan Alat</span>
+          <Camera className="w-5 sm:w-5.5 h-5 sm:h-5.5" />
+          <span className="text-[9px] sm:text-[10px] uppercase font-bold tracking-wider mt-1 block">Scan</span>
         </button>
       </nav>
+
+      {/* PROFILE EDIT/DELETE MODAL */}
+      <AnimatePresence>
+        {showEditProfile && activeProfile && (
+          <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
+            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-[#201f1f] dark-card border border-[#444933] dark-border rounded-2xl w-full max-w-md p-6 relative ios-appear">
+              <div className="absolute top-0 left-0 w-full h-[3px] bg-[#c3f400]"></div>
+              <button onClick={() => { setShowEditProfile(false); setConfirmDeleteProfile(false); }} className="absolute top-4 right-4 text-zinc-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+              <h3 className="font-display text-xl font-bold text-white dark-text mb-4">Edit Profil</h3>
+              <div className="space-y-3">
+                <input value={editProfileName} onChange={e => setEditProfileName(e.target.value)} placeholder="Nama"
+                  className="w-full bg-[#131313] dark-input border border-zinc-700 rounded-xl h-11 px-3 text-white text-sm" />
+                <div className="grid grid-cols-2 gap-3">
+                  <input type="number" value={editProfileHeight} onChange={e => setEditProfileHeight(e.target.value)} placeholder="Tinggi (cm)"
+                    className="bg-[#131313] dark-input border border-zinc-700 rounded-xl h-11 px-3 text-white text-sm" />
+                  <input type="number" value={editProfileWeight} onChange={e => setEditProfileWeight(e.target.value)} placeholder="Berat (kg)"
+                    className="bg-[#131313] dark-input border border-zinc-700 rounded-xl h-11 px-3 text-white text-sm" />
+                </div>
+                <input type="number" value={editProfileTarget} onChange={e => setEditProfileTarget(e.target.value)} placeholder="Target Berat (kg)"
+                  className="w-full bg-[#131313] dark-input border border-zinc-700 rounded-xl h-11 px-3 text-white text-sm" />
+                <button onClick={handleEditProfile}
+                  className="w-full bg-[#c3f400] text-black font-display font-bold py-3 rounded-xl">Simpan Perubahan</button>
+                <div className="border-t border-zinc-800 pt-3">
+                  {!confirmDeleteProfile ? (
+                    <button onClick={() => setConfirmDeleteProfile(true)}
+                      className="w-full text-red-400 text-xs font-semibold py-2 border border-red-900/50 rounded-xl hover:bg-red-950/30">Hapus Profil Ini</button>
+                  ) : (
+                    <div className="flex gap-2">
+                      <button onClick={handleDeleteProfile} className="flex-1 bg-red-600 text-white font-bold py-2 rounded-xl text-xs">Ya, Hapus</button>
+                      <button onClick={() => setConfirmDeleteProfile(false)} className="flex-1 bg-zinc-800 text-zinc-300 py-2 rounded-xl text-xs">Batal</button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* UPDATE WORKOUT LOG MODAL DIALOG */}
       <AnimatePresence>

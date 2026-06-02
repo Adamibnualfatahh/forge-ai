@@ -4,11 +4,41 @@ import dotenv from "dotenv";
 import { createServer as createViteServer } from "vite";
 import { createClient } from "@libsql/client";
 import { GoogleGenAI, Type } from "@google/genai";
+import Redis from "ioredis";
 
 dotenv.config();
 
 const app = express();
 const PORT = 3000;
+
+// Redis cache
+const CACHE_PREFIX = "forge-ai-";
+const CACHE_TTL = 300; // 5 minutes
+
+let redis: Redis | null = null;
+function getRedis(): Redis {
+  if (!redis) {
+    redis = new Redis(process.env.REDIS_URL || "", { maxRetriesPerRequest: 2, lazyConnect: true });
+    redis.connect().catch(e => console.warn("Redis connection failed, running without cache:", e.message));
+  }
+  return redis;
+}
+
+async function cacheGet(key: string): Promise<string | null> {
+  try { return await getRedis().get(CACHE_PREFIX + key); } catch { return null; }
+}
+
+async function cacheSet(key: string, value: string, ttl = CACHE_TTL): Promise<void> {
+  try { await getRedis().setex(CACHE_PREFIX + key, ttl, value); } catch {}
+}
+
+async function cacheDel(pattern: string): Promise<void> {
+  try {
+    const r = getRedis();
+    const keys = await r.keys(CACHE_PREFIX + pattern);
+    if (keys.length > 0) await r.del(...keys);
+  } catch {}
+}
 
 // Set up server-side JSON and Form body parsers
 app.use(express.json());
@@ -88,6 +118,41 @@ async function initDb() {
         sender TEXT NOT NULL,
         message TEXT NOT NULL,
         timestamp INTEGER NOT NULL
+      )
+    `);
+
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS weight_history (
+        id TEXT PRIMARY KEY,
+        profile_id TEXT NOT NULL,
+        weight REAL NOT NULL,
+        date TEXT NOT NULL,
+        timestamp INTEGER NOT NULL
+      )
+    `);
+
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS workout_templates (
+        id TEXT PRIMARY KEY,
+        profile_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        focus TEXT,
+        exercises TEXT NOT NULL,
+        created_at INTEGER NOT NULL
+      )
+    `);
+
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS goals (
+        id TEXT PRIMARY KEY,
+        profile_id TEXT NOT NULL,
+        type TEXT NOT NULL,
+        target_value REAL,
+        current_value REAL,
+        target_date TEXT,
+        description TEXT,
+        completed INTEGER DEFAULT 0,
+        created_at INTEGER NOT NULL
       )
     `);
 
@@ -189,8 +254,11 @@ initDb();
 // 1. Get all profiles
 app.get("/api/profiles", async (req, res) => {
   try {
+    const cached = await cacheGet("profiles");
+    if (cached) return res.json(JSON.parse(cached));
     const db = getDb();
     const result = await db.execute("SELECT * FROM profiles");
+    await cacheSet("profiles", JSON.stringify(result.rows));
     res.json(result.rows);
   } catch (error) {
     console.error(error);
@@ -255,6 +323,7 @@ app.post("/api/profiles", async (req, res) => {
       sql: "SELECT * FROM profiles WHERE id = ?",
       args: [lowercaseId]
     });
+    await cacheDel("profiles");
     res.json(updated.rows[0]);
   } catch (error) {
     console.error(error);
@@ -266,6 +335,8 @@ app.post("/api/profiles", async (req, res) => {
 app.get("/api/profiles/:id/logs", async (req, res) => {
   const profileId = req.params.id;
   try {
+    const cached = await cacheGet(`logs:${profileId}`);
+    if (cached) return res.json(JSON.parse(cached));
     const db = getDb();
     const result = await db.execute({
       sql: "SELECT * FROM workouts WHERE profile_id = ? ORDER BY date DESC",
@@ -277,6 +348,7 @@ app.get("/api/profiles/:id/logs", async (req, res) => {
       ...row,
       exercises: typeof row.exercises === 'string' ? JSON.parse(row.exercises) : row.exercises
     }));
+    await cacheSet(`logs:${profileId}`, JSON.stringify(logs));
     res.json(logs);
   } catch (error) {
     console.error(error);
@@ -304,6 +376,8 @@ app.post("/api/profiles/:id/logs", async (req, res) => {
       args: [profileId]
     });
 
+    await cacheDel(`logs:${profileId}`);
+    await cacheDel("profiles");
     res.json({ success: true, logId });
   } catch (error) {
     console.error(error);
@@ -338,6 +412,8 @@ app.delete("/api/profiles/:profileId/logs/:logId", async (req, res) => {
       args: [profileId]
     });
 
+    await cacheDel(`logs:${profileId}`);
+    await cacheDel("profiles");
     res.json({ success: true });
   } catch (error) {
     console.error("Failed to delete log:", error);
@@ -368,6 +444,7 @@ app.put("/api/profiles/:profileId/logs/:logId", async (req, res) => {
       args: [date, focus, location, equipment, JSON.stringify(exercises), logId, profileId]
     });
 
+    await cacheDel(`logs:${profileId}`);
     res.json({ success: true });
   } catch (error) {
     console.error("Failed to update log:", error);
@@ -379,12 +456,16 @@ app.put("/api/profiles/:profileId/logs/:logId", async (req, res) => {
 app.get("/api/profiles/:id/recomp", async (req, res) => {
   const profileId = req.params.id;
   try {
+    const cached = await cacheGet(`recomp:${profileId}`);
+    if (cached) return res.json(JSON.parse(cached));
     const db = getDb();
     const result = await db.execute({
       sql: "SELECT * FROM recomp_analyses WHERE profile_id = ? ORDER BY timestamp DESC LIMIT 1",
       args: [profileId]
     });
-    res.json(result.rows[0] || null);
+    const data = result.rows[0] || null;
+    if (data) await cacheSet(`recomp:${profileId}`, JSON.stringify(data));
+    res.json(data);
   } catch (error) {
     console.error(error);
     res.json(null);
@@ -517,6 +598,9 @@ Aturan Penting:
       args: [tb, bb, focusType + " Plan", profileId]
     });
 
+    await cacheDel(`recomp:${profileId}`);
+    await cacheDel("profiles");
+
     res.json({
       id: recompId,
       profile_id: profileId,
@@ -539,11 +623,14 @@ Aturan Penting:
 app.get("/api/profiles/:id/chat", async (req, res) => {
   const profileId = req.params.id;
   try {
+    const cached = await cacheGet(`chat:${profileId}`);
+    if (cached) return res.json(JSON.parse(cached));
     const db = getDb();
     const result = await db.execute({
       sql: "SELECT * FROM chat_history WHERE profile_id = ? ORDER BY timestamp ASC",
       args: [profileId]
     });
+    await cacheSet(`chat:${profileId}`, JSON.stringify(result.rows), 120);
     res.json(result.rows);
   } catch (error) {
     console.error(error);
@@ -644,6 +731,8 @@ Berikan responsmu langsung sebagai asisten pelatih olahraga Forge AI!`;
       sql: `INSERT INTO chat_history (id, profile_id, sender, message, timestamp) VALUES (?, ?, 'assistant', ?, ?)`,
       args: [aiMsgId, profileId, aiResponseText, aiTime]
     });
+
+    await cacheDel(`chat:${profileId}`);
 
     res.json({
       id: aiMsgId,
@@ -795,6 +884,183 @@ Aturan: Jangan sertakan blok pembuka/penutup markdown. Hanya kembalikan string J
     console.error("Scanning equipment failure:", err);
     res.status(500).json({ error: "Gagal mendeteksi alat gym dari foto yang diberikan. Pastikan foto jelas dan coba lagi." });
   }
+});
+
+// 11. Update Profile
+app.put("/api/profiles/:id", async (req, res) => {
+  const { id } = req.params;
+  const { name, height, weight, target_weight, focus_area } = req.body;
+  try {
+    const db = getDb();
+    await db.execute({
+      sql: "UPDATE profiles SET name=?, height=?, weight=?, target_weight=?, focus_area=? WHERE id=?",
+      args: [name, height, weight, target_weight, focus_area, id]
+    });
+    const result = await db.execute({ sql: "SELECT * FROM profiles WHERE id=?", args: [id] });
+    await cacheDel("profiles");
+    res.json(result.rows[0]);
+  } catch (e) { console.error(e); res.status(500).json({ error: "Failed to update profile" }); }
+});
+
+// 12. Delete Profile
+app.delete("/api/profiles/:id", async (req, res) => {
+  const { id } = req.params;
+  try {
+    const db = getDb();
+    await db.execute({ sql: "DELETE FROM workouts WHERE profile_id=?", args: [id] });
+    await db.execute({ sql: "DELETE FROM chat_history WHERE profile_id=?", args: [id] });
+    await db.execute({ sql: "DELETE FROM recomp_analyses WHERE profile_id=?", args: [id] });
+    await db.execute({ sql: "DELETE FROM weight_history WHERE profile_id=?", args: [id] });
+    await db.execute({ sql: "DELETE FROM workout_templates WHERE profile_id=?", args: [id] });
+    await db.execute({ sql: "DELETE FROM goals WHERE profile_id=?", args: [id] });
+    await db.execute({ sql: "DELETE FROM profiles WHERE id=?", args: [id] });
+    await cacheDel("profiles");
+    await cacheDel(`logs:${id}`);
+    await cacheDel(`chat:${id}`);
+    await cacheDel(`recomp:${id}`);
+    await cacheDel(`weight:${id}`);
+    await cacheDel(`tpl:${id}`);
+    await cacheDel(`goals:${id}`);
+    res.json({ success: true });
+  } catch (e) { console.error(e); res.status(500).json({ error: "Failed to delete profile" }); }
+});
+
+// 13. Weight History
+app.get("/api/profiles/:id/weight-history", async (req, res) => {
+  const { id } = req.params;
+  try {
+    const cached = await cacheGet(`weight:${id}`);
+    if (cached) return res.json(JSON.parse(cached));
+    const db = getDb();
+    const result = await db.execute({ sql: "SELECT * FROM weight_history WHERE profile_id=? ORDER BY timestamp DESC LIMIT 20", args: [id] });
+    await cacheSet(`weight:${id}`, JSON.stringify(result.rows));
+    res.json(result.rows);
+  } catch (e) { console.error(e); res.status(500).json({ error: "Failed to fetch weight history" }); }
+});
+
+app.post("/api/profiles/:id/weight-history", async (req, res) => {
+  const { id } = req.params;
+  const { weight, date } = req.body;
+  try {
+    const db = getDb();
+    const entryId = `wh_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    await db.execute({
+      sql: "INSERT INTO weight_history (id, profile_id, weight, date, timestamp) VALUES (?,?,?,?,?)",
+      args: [entryId, id, weight, date || new Date().toISOString().split('T')[0], Date.now()]
+    });
+    await cacheDel(`weight:${id}`);
+    res.json({ id: entryId, profile_id: id, weight, date, timestamp: Date.now() });
+  } catch (e) { console.error(e); res.status(500).json({ error: "Failed to log weight" }); }
+});
+
+// 14. Workout Templates
+app.get("/api/profiles/:id/templates", async (req, res) => {
+  const { id } = req.params;
+  try {
+    const cached = await cacheGet(`tpl:${id}`);
+    if (cached) return res.json(JSON.parse(cached));
+    const db = getDb();
+    const result = await db.execute({ sql: "SELECT * FROM workout_templates WHERE profile_id=? ORDER BY created_at DESC", args: [id] });
+    const templates = result.rows.map((r: any) => ({ ...r, exercises: JSON.parse(r.exercises as string) }));
+    await cacheSet(`tpl:${id}`, JSON.stringify(templates));
+    res.json(templates);
+  } catch (e) { console.error(e); res.status(500).json({ error: "Failed to fetch templates" }); }
+});
+
+app.post("/api/profiles/:id/templates", async (req, res) => {
+  const { id } = req.params;
+  const { name, focus, exercises } = req.body;
+  try {
+    const db = getDb();
+    const tplId = `tpl_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    await db.execute({
+      sql: "INSERT INTO workout_templates (id, profile_id, name, focus, exercises, created_at) VALUES (?,?,?,?,?,?)",
+      args: [tplId, id, name, focus, JSON.stringify(exercises), Date.now()]
+    });
+    await cacheDel(`tpl:${id}`);
+    res.json({ id: tplId, profile_id: id, name, focus, exercises, created_at: Date.now() });
+  } catch (e) { console.error(e); res.status(500).json({ error: "Failed to save template" }); }
+});
+
+app.delete("/api/profiles/:id/templates/:tplId", async (req, res) => {
+  const { id, tplId } = req.params;
+  try {
+    const db = getDb();
+    await db.execute({ sql: "DELETE FROM workout_templates WHERE id=? AND profile_id=?", args: [tplId, id] });
+    await cacheDel(`tpl:${id}`);
+    res.json({ success: true });
+  } catch (e) { console.error(e); res.status(500).json({ error: "Failed to delete template" }); }
+});
+
+// 15. Goals
+app.get("/api/profiles/:id/goals", async (req, res) => {
+  const { id } = req.params;
+  try {
+    const cached = await cacheGet(`goals:${id}`);
+    if (cached) return res.json(JSON.parse(cached));
+    const db = getDb();
+    const result = await db.execute({ sql: "SELECT * FROM goals WHERE profile_id=? ORDER BY created_at DESC", args: [id] });
+    await cacheSet(`goals:${id}`, JSON.stringify(result.rows));
+    res.json(result.rows);
+  } catch (e) { console.error(e); res.status(500).json({ error: "Failed to fetch goals" }); }
+});
+
+app.post("/api/profiles/:id/goals", async (req, res) => {
+  const { id } = req.params;
+  const { type, target_value, current_value, target_date, description } = req.body;
+  try {
+    const db = getDb();
+    const goalId = `goal_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    await db.execute({
+      sql: "INSERT INTO goals (id, profile_id, type, target_value, current_value, target_date, description, created_at) VALUES (?,?,?,?,?,?,?,?)",
+      args: [goalId, id, type, target_value, current_value || 0, target_date, description, Date.now()]
+    });
+    await cacheDel(`goals:${id}`);
+    res.json({ id: goalId, profile_id: id, type, target_value, current_value: current_value || 0, target_date, description, completed: 0, created_at: Date.now() });
+  } catch (e) { console.error(e); res.status(500).json({ error: "Failed to create goal" }); }
+});
+
+app.put("/api/profiles/:id/goals/:goalId", async (req, res) => {
+  const { id, goalId } = req.params;
+  const { current_value, completed } = req.body;
+  try {
+    const db = getDb();
+    await db.execute({
+      sql: "UPDATE goals SET current_value=?, completed=? WHERE id=? AND profile_id=?",
+      args: [current_value, completed ? 1 : 0, goalId, id]
+    });
+    await cacheDel(`goals:${id}`);
+    res.json({ success: true });
+  } catch (e) { console.error(e); res.status(500).json({ error: "Failed to update goal" }); }
+});
+
+app.delete("/api/profiles/:id/goals/:goalId", async (req, res) => {
+  const { id, goalId } = req.params;
+  try {
+    const db = getDb();
+    await db.execute({ sql: "DELETE FROM goals WHERE id=? AND profile_id=?", args: [goalId, id] });
+    await cacheDel(`goals:${id}`);
+    res.json({ success: true });
+  } catch (e) { console.error(e); res.status(500).json({ error: "Failed to delete goal" }); }
+});
+
+// 16. CSV Export
+app.get("/api/profiles/:id/export-csv", async (req, res) => {
+  const { id } = req.params;
+  try {
+    const db = getDb();
+    const logsRes = await db.execute({ sql: "SELECT * FROM workouts WHERE profile_id=? ORDER BY date DESC", args: [id] });
+    let csv = "Date,Focus,Location,Equipment,Exercise,Sets,Reps,Weight(kg),Notes\n";
+    for (const row of logsRes.rows) {
+      const exercises = JSON.parse(row.exercises as string);
+      for (const ex of exercises) {
+        csv += `"${row.date}","${row.focus}","${row.location || ''}","${row.equipment || ''}","${ex.name}",${ex.sets},"${ex.reps}",${ex.weight_kg || ''},"${(ex.notes || '').replace(/"/g, '""')}"\n`;
+      }
+    }
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename=forge-ai-export-${id}.csv`);
+    res.send(csv);
+  } catch (e) { console.error(e); res.status(500).json({ error: "Failed to export CSV" }); }
 });
 
 function getFallbackWorkout(lastFocus: string, equipment: string[], targetFocus?: string) {
