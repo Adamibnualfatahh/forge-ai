@@ -2,6 +2,8 @@ import express from "express";
 import dotenv from "dotenv";
 import { createClient } from "@libsql/client";
 import { GoogleGenAI } from "@google/genai";
+import multer from "multer";
+import { XMLParser } from "fast-xml-parser";
 
 dotenv.config();
 
@@ -998,6 +1000,82 @@ app.get("/api/profiles/:id/apple-health", async (req, res) => {
     const result = await db.execute({ sql: "SELECT * FROM apple_health WHERE profile_id=? ORDER BY timestamp DESC LIMIT 50", args: [id] });
     res.json(result.rows);
   } catch (e) { res.status(500).json({ error: "Failed" }); }
+});
+
+// Apple Health XML Export Import
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 150 * 1024 * 1024 } });
+
+app.post("/api/profiles/:id/apple-health/import-xml", upload.single("file"), async (req: any, res) => {
+  const { id } = req.params;
+  if (!req.file) return res.status(400).json({ error: "No file uploaded" });
+
+  try {
+    const db = getDb();
+    const xml = req.file.buffer.toString("utf-8");
+    const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: "@_" });
+    const parsed = parser.parse(xml);
+
+    const records = parsed?.HealthData?.Record;
+    if (!records) return res.status(400).json({ error: "No health records found in XML" });
+
+    const recordList = Array.isArray(records) ? records : [records];
+
+    // Filter relevant types
+    const relevantTypes = [
+      "HKQuantityTypeIdentifierStepCount",
+      "HKQuantityTypeIdentifierActiveEnergyBurned",
+      "HKQuantityTypeIdentifierBasalEnergyBurned",
+      "HKQuantityTypeIdentifierDistanceWalkingRunning",
+      "HKQuantityTypeIdentifierHeartRate",
+      "HKQuantityTypeIdentifierBodyMass",
+      "HKQuantityTypeIdentifierBodyFatPercentage",
+      "HKQuantityTypeIdentifierAppleExerciseTime",
+    ];
+
+    const typeMap: Record<string, string> = {
+      "HKQuantityTypeIdentifierStepCount": "steps",
+      "HKQuantityTypeIdentifierActiveEnergyBurned": "activeEnergy",
+      "HKQuantityTypeIdentifierBasalEnergyBurned": "basalEnergy",
+      "HKQuantityTypeIdentifierDistanceWalkingRunning": "distance",
+      "HKQuantityTypeIdentifierHeartRate": "heartRate",
+      "HKQuantityTypeIdentifierBodyMass": "bodyMass",
+      "HKQuantityTypeIdentifierBodyFatPercentage": "bodyFat",
+      "HKQuantityTypeIdentifierAppleExerciseTime": "exerciseMinutes",
+    };
+
+    // Aggregate by date + type (sum values per day)
+    const aggregated: Record<string, { type: string; value: number; unit: string; date: string }> = {};
+
+    for (const r of recordList) {
+      const rType = r["@_type"];
+      if (!relevantTypes.includes(rType)) continue;
+      const date = (r["@_startDate"] || "").slice(0, 10);
+      if (!date) continue;
+      const key = `${date}_${rType}`;
+      const val = parseFloat(r["@_value"]) || 0;
+      const unit = r["@_unit"] || "";
+      if (!aggregated[key]) {
+        aggregated[key] = { type: typeMap[rType] || rType, value: 0, unit, date };
+      }
+      aggregated[key].value += val;
+    }
+
+    const entries = Object.values(aggregated);
+    let imported = 0;
+    for (const entry of entries) {
+      const entryId = `ah_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      await db.execute({
+        sql: "INSERT INTO apple_health (id, profile_id, type, value, unit, date, timestamp) VALUES (?,?,?,?,?,?,?)",
+        args: [entryId, id, entry.type, Math.round(entry.value * 100) / 100, entry.unit, entry.date, Date.now()]
+      });
+      imported++;
+    }
+
+    res.json({ success: true, imported, totalRecordsScanned: recordList.length });
+  } catch (e: any) {
+    console.error("Apple Health XML import failed:", e);
+    res.status(500).json({ error: "Failed to parse XML: " + (e.message || "Unknown error") });
+  }
 });
 
 // CSV Export

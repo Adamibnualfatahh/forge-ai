@@ -53,6 +53,7 @@ import ProgressiveOverload from "./ProgressiveOverload";
 import { getExerciseInfo, searchExercises, EXERCISE_DB, ExerciseInfo } from "./exerciseDb";
 import MuscleIcon from "./MuscleIcon";
 import ShareCard from "./ShareCard";
+import AppleHealth from "./AppleHealth";
 
 import { useForgeStore } from "./store";
 
@@ -68,6 +69,7 @@ export default function App() {
   };
   // Custom Profile Form Dialog
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [showAppleHealth, setShowAppleHealth] = useState(false);
   const [newProfileName, setNewProfileName] = useState("");
   const [newProfileHeight, setNewProfileHeight] = useState("175");
   const [newProfileWeight, setNewProfileWeight] = useState("75");
@@ -1449,11 +1451,11 @@ export default function App() {
                 {/* Visual state badges / Apple Health Toggle */}
                 <div className="flex items-center gap-2 mt-4 sm:mt-0">
                   <button 
-                    onClick={toggleAppleHealth}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] sm:text-xs font-semibold transition-colors border ${activeProfile.apple_health_connected ? 'bg-red-500/10 text-red-500 border-red-500/30' : 'bg-[#1a1a1a] text-zinc-400 border-zinc-800'}`}
+                    onClick={() => setShowAppleHealth(true)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] sm:text-xs font-semibold transition-colors border bg-[#1a1a1a] text-zinc-400 border-zinc-800 hover:border-[#c3f400] hover:text-[#c3f400]"
                   >
                     <Activity className="w-3.5 h-3.5" />
-                    {activeProfile.apple_health_connected ? 'Apple Health Connected' : 'Connect Apple Health'}
+                    Apple Health
                   </button>
                 </div>
               </div>
@@ -2795,6 +2797,29 @@ export default function App() {
         </AnimatePresence>
 
       </main>
+
+      {/* APPLE HEALTH PANEL */}
+      <AnimatePresence>
+        {showAppleHealth && activeProfile && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/90 z-50 backdrop-blur-sm flex flex-col"
+            style={{ maxWidth: '430px', margin: '0 auto' }}
+          >
+            <div className="flex items-center justify-between p-4 border-b border-zinc-800">
+              <h2 className="text-white font-bold">Apple Health</h2>
+              <button onClick={() => setShowAppleHealth(false)} className="p-2 rounded-xl bg-zinc-900 text-zinc-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4 pb-20">
+              <AppleHealth profileId={activeProfile.id} />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* FIXED BOTTOM NAVIGATION BAR SYSTEM */}
       <nav className="fixed bottom-0 left-0 w-full ios-glass bg-[#121212]/80 dark-nav border-t border-[#2c2c2c] dark-border pt-2 pb-[max(env(safe-area-inset-bottom),12px)] px-3 flex justify-around items-center z-40" style={{ maxWidth: '430px', margin: '0 auto', right: 0 }}>
