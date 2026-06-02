@@ -208,41 +208,8 @@ async function initDb() {
       console.log("Seeded database with default profiles Adam and Thiara.");
     }
 
-    // Run active reset script as requested by the user
-    console.log("Executing requested active database reset...");
-    
-    // 1. Delete all workouts not belonging to 'adam'
-    await db.execute("DELETE FROM workouts WHERE profile_id != 'adam'");
-
-    // 2. Clear all other logs of adam, leaving only the single latest log
-    await db.execute(`
-      DELETE FROM workouts 
-      WHERE profile_id = 'adam' 
-        AND id NOT IN (
-          SELECT id FROM (
-            SELECT id FROM workouts 
-            WHERE profile_id = 'adam' 
-            ORDER BY date DESC 
-            LIMIT 1
-          )
-        )
-    `);
-
-    // 3. Reset streaks and total_sessions for other profiles to 0
-    await db.execute("UPDATE profiles SET streak = 0, total_sessions = 0 WHERE id != 'adam'");
-
-    // 4. Update adam's profile to match the remaining workouts (which is at most 1) and reset their streak
-    const adamWorkoutsCountRes = await db.execute("SELECT COUNT(*) as count FROM workouts WHERE profile_id = 'adam'");
-    const adamWorkoutsCount = Number(adamWorkoutsCountRes.rows[0]?.count || 0);
-    
-    await db.execute({
-      sql: "UPDATE profiles SET streak = 0, total_sessions = ? WHERE id = 'adam'",
-      args: [adamWorkoutsCount]
-    });
-
-    console.log("Active database reset successfully finished!");
   } catch (error) {
-    console.error("Database connection/init failed. Falling back to in-memory simulated DB on error.", error);
+    console.error("Database connection/init failed.", error);
   }
 }
 
