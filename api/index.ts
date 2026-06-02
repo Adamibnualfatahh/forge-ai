@@ -140,6 +140,18 @@ async function initDb() {
       )
     `);
 
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS apple_health (
+        id TEXT PRIMARY KEY,
+        profile_id TEXT NOT NULL,
+        type TEXT NOT NULL,
+        value REAL,
+        unit TEXT,
+        date TEXT NOT NULL,
+        timestamp INTEGER NOT NULL
+      )
+    `);
+
     // Verify and seed default profiles
     const existing = await db.execute("SELECT * FROM profiles");
     if (existing.rows.length === 0) {
@@ -958,29 +970,21 @@ app.delete("/api/profiles/:id/goals/:goalId", async (req, res) => {
 // Apple Health Data Import
 app.post("/api/profiles/:id/apple-health", async (req, res) => {
   const { id } = req.params;
-  const { data } = req.body;
   try {
     const db = getDb();
-    await db.execute(`
-      CREATE TABLE IF NOT EXISTS apple_health (
-        id TEXT PRIMARY KEY,
-        profile_id TEXT NOT NULL,
-        type TEXT NOT NULL,
-        value REAL,
-        unit TEXT,
-        date TEXT NOT NULL,
-        timestamp INTEGER NOT NULL
-      )
-    `);
-    const entries = Array.isArray(data) ? data : [data];
+    const body = req.body || {};
+    const entries = Array.isArray(body.data) ? body.data : Array.isArray(body) ? body : [body];
+    let imported = 0;
     for (const entry of entries) {
+      if (!entry || typeof entry !== 'object') continue;
       const entryId = `ah_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
       await db.execute({
         sql: "INSERT INTO apple_health (id, profile_id, type, value, unit, date, timestamp) VALUES (?,?,?,?,?,?,?)",
-        args: [entryId, id, entry.type || "unknown", entry.value || 0, entry.unit || "", entry.date || new Date().toISOString().split('T')[0], Date.now()]
+        args: [entryId, id, entry.type || "unknown", entry.value ?? 0, entry.unit || "", entry.date || new Date().toISOString().split('T')[0], Date.now()]
       });
+      imported++;
     }
-    res.json({ success: true, imported: entries.length });
+    res.json({ success: true, imported });
   } catch (e) {
     console.error("Apple Health import failed:", e);
     res.status(500).json({ error: "Failed to import Apple Health data" });
@@ -991,17 +995,6 @@ app.get("/api/profiles/:id/apple-health", async (req, res) => {
   const { id } = req.params;
   try {
     const db = getDb();
-    await db.execute(`
-      CREATE TABLE IF NOT EXISTS apple_health (
-        id TEXT PRIMARY KEY,
-        profile_id TEXT NOT NULL,
-        type TEXT NOT NULL,
-        value REAL,
-        unit TEXT,
-        date TEXT NOT NULL,
-        timestamp INTEGER NOT NULL
-      )
-    `);
     const result = await db.execute({ sql: "SELECT * FROM apple_health WHERE profile_id=? ORDER BY timestamp DESC LIMIT 50", args: [id] });
     res.json(result.rows);
   } catch (e) { res.status(500).json({ error: "Failed" }); }
