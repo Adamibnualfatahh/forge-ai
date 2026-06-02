@@ -95,9 +95,14 @@ async function initDb() {
         target_weight REAL,
         focus_area TEXT,
         streak INTEGER DEFAULT 0,
-        total_sessions INTEGER DEFAULT 0
+        total_sessions INTEGER DEFAULT 0,
+        apple_health_connected INTEGER DEFAULT 0
       )
     `);
+
+    // Add columns if table already exists (safe migrations for existing DBs)
+    try { await db.execute("ALTER TABLE profiles ADD COLUMN apple_health_connected INTEGER DEFAULT 0"); } catch (e) {}
+
     
     await db.execute(`
       CREATE TABLE IF NOT EXISTS workouts (
@@ -107,9 +112,15 @@ async function initDb() {
         focus TEXT,
         location TEXT,
         equipment TEXT,
-        exercises TEXT NOT NULL
+        exercises TEXT NOT NULL,
+        calories_burned REAL,
+        avg_bpm REAL
       )
     `);
+
+    try { await db.execute("ALTER TABLE workouts ADD COLUMN calories_burned REAL"); } catch (e) {}
+    try { await db.execute("ALTER TABLE workouts ADD COLUMN avg_bpm REAL"); } catch (e) {}
+
 
     await db.execute(`
       CREATE TABLE IF NOT EXISTS chat_history (
@@ -326,15 +337,15 @@ app.get("/api/profiles/:id/logs", async (req, res) => {
 // 4. Save workout log for profile & increment sessions + streak
 app.post("/api/profiles/:id/logs", async (req, res) => {
   const profileId = req.params.id;
-  const { date, focus, location, equipment, exercises } = req.body;
+  const { date, focus, location, equipment, exercises, calories_burned, avg_bpm } = req.body;
   const logId = Math.random().toString(36).substring(2, 11);
 
   try {
     const db = getDb();
     await db.execute({
-      sql: `INSERT INTO workouts (id, profile_id, date, focus, location, equipment, exercises) 
-            VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      args: [logId, profileId, date, focus, location, equipment, JSON.stringify(exercises)]
+      sql: `INSERT INTO workouts (id, profile_id, date, focus, location, equipment, exercises, calories_burned, avg_bpm) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      args: [logId, profileId, date, focus, location, equipment, JSON.stringify(exercises), calories_burned || null, avg_bpm || null]
     });
 
     // Update profile stats
@@ -1087,6 +1098,23 @@ function getFallbackWorkout(lastFocus: string, equipment: string[], targetFocus?
 // Serve Vite or static files based on node environment
 
 async function startServer() {
+// Toggle Apple Health connection
+app.post("/api/profiles/:id/apple-health", async (req, res) => {
+  const profileId = req.params.id;
+  const { connected } = req.body;
+  try {
+    const db = getDb();
+    await db.execute({
+      sql: "UPDATE profiles SET apple_health_connected = ? WHERE id = ?",
+      args: [connected ? 1 : 0, profileId]
+    });
+    await cacheDel("profiles");
+    res.json({ success: true, connected });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Failed to update Apple Health status" });
+  }
+});
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
       server: { middlewareMode: true },
@@ -1107,3 +1135,4 @@ async function startServer() {
 }
 
 startServer();
+

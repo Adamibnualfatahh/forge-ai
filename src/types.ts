@@ -28,6 +28,7 @@ export interface Profile {
   focus_area: string;
   streak: number;
   total_sessions: number;
+  apple_health_connected?: boolean;
 }
 
 export interface WorkoutLog {
@@ -38,6 +39,8 @@ export interface WorkoutLog {
   location: string;
   equipment: string;
   exercises: Exercise[];
+  calories_burned?: number;
+  avg_bpm?: number;
 }
 
 export interface RecompAnalysis {

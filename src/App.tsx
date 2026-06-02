@@ -54,11 +54,18 @@ import { getExerciseInfo, searchExercises, EXERCISE_DB, ExerciseInfo } from "./e
 import MuscleIcon from "./MuscleIcon";
 import ShareCard from "./ShareCard";
 
+import { useForgeStore } from "./store";
+
 export default function App() {
+  const { activeProfileId, setActiveProfileId } = useForgeStore();
+
   // Profiles state
   const [profiles, setProfiles] = useState<Profile[]>([]);
-  const [activeProfile, setActiveProfile] = useState<Profile | null>(null);
+  const activeProfile = React.useMemo(() => profiles.find(p => p.id === activeProfileId) || null, [profiles, activeProfileId]);
   
+  const setActiveProfile = (profile: Profile | null) => {
+    setActiveProfileId(profile ? profile.id : null);
+  };
   // Custom Profile Form Dialog
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [newProfileName, setNewProfileName] = useState("");
@@ -601,6 +608,19 @@ export default function App() {
     setFormError("");
     
     try {
+      let mockCalories = null;
+      let mockBpm = null;
+
+      if (activeProfile.apple_health_connected) {
+        setIsSyncingHealth(true);
+        // Simulasi menarik data dari Apple Health / Watch
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        setIsSyncingHealth(false);
+        const vol = calculateTotalVolume(loggerExercises);
+        mockCalories = Math.round(150 + (vol / 1000) * 100 + Math.random() * 50);
+        mockBpm = Math.round(115 + Math.random() * 30);
+      }
+
       const res = await fetch(`/api/profiles/${activeProfile.id}/logs`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -609,7 +629,9 @@ export default function App() {
           focus: todayPlan?.focus || "Custom Workouts",
           location: loggerLocation,
           equipment: loggerEquipment.join(", "),
-          exercises: loggerExercises
+          exercises: loggerExercises,
+          calories_burned: mockCalories,
+          avg_bpm: mockBpm
         })
       });
 
@@ -643,10 +665,25 @@ export default function App() {
   };
 
   // Finished active workout checkpoint
+  const [isSyncingHealth, setIsSyncingHealth] = useState(false);
+
   const submitActiveWorkout = async () => {
     if (!activeProfile || !todayPlan) return;
 
     try {
+      let mockCalories = null;
+      let mockBpm = null;
+
+      if (activeProfile.apple_health_connected) {
+        setIsSyncingHealth(true);
+        // Simulasi menarik data dari Apple Health / Watch
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        setIsSyncingHealth(false);
+        const vol = calculateTotalVolume(todayPlan.exercises);
+        mockCalories = Math.round(150 + (vol / 1000) * 100 + Math.random() * 50);
+        mockBpm = Math.round(115 + Math.random() * 30);
+      }
+
       const todayDateStr = new Date().toISOString().split('T')[0];
       const res = await fetch(`/api/profiles/${activeProfile.id}/logs`, {
         method: "POST",
@@ -656,7 +693,9 @@ export default function App() {
           focus: todayPlan.focus,
           location: workoutSessionLocation,
           equipment: "Pilihan Custom",
-          exercises: todayPlan.exercises
+          exercises: todayPlan.exercises,
+          calories_burned: mockCalories,
+          avg_bpm: mockBpm
         })
       });
 
@@ -765,6 +804,27 @@ export default function App() {
       }
     }
   }, [logs, activeProfile]);
+
+  const toggleAppleHealth = async () => {
+    if (!activeProfile) return;
+    try {
+      const newState = !activeProfile.apple_health_connected;
+      const res = await fetch(`/api/profiles/${activeProfile.id}/apple-health`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ connected: newState })
+      });
+      if (res.ok) {
+        // Update local state without full reload
+        const updatedProfiles = profiles.map(p => 
+          p.id === activeProfile.id ? { ...p, apple_health_connected: newState } : p
+        );
+        setProfiles(updatedProfiles);
+      }
+    } catch (error) {
+      console.error("Failed to toggle Apple Health", error);
+    }
+  };
 
   // Volume calculations and funny/insightful animals comparison helpers
   const calculateTotalVolume = (exercises: Exercise[]): number => {
@@ -1402,7 +1462,16 @@ export default function App() {
                     {new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
                   </p>
                 </div>
-                {/* Visual state badges */}
+                {/* Visual state badges / Apple Health Toggle */}
+                <div className="flex items-center gap-2 mt-4 sm:mt-0">
+                  <button 
+                    onClick={toggleAppleHealth}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] sm:text-xs font-semibold transition-colors border ${activeProfile.apple_health_connected ? 'bg-red-500/10 text-red-500 border-red-500/30' : 'bg-[#1a1a1a] text-zinc-400 border-zinc-800'}`}
+                  >
+                    <Activity className="w-3.5 h-3.5" />
+                    {activeProfile.apple_health_connected ? 'Apple Health Connected' : 'Connect Apple Health'}
+                  </button>
+                </div>
               </div>
 
               {/* BENTO STATS CARDS GRID */}
@@ -1668,6 +1737,21 @@ export default function App() {
                                 <p className="font-sans text-xs text-[#c4c9ac] mt-1">
                                   <strong>{log.exercises?.length || 0} gerakan</strong> direkam
                                 </p>
+                                {/* Apple Health Data Badges */}
+                                {(log.calories_burned || log.avg_bpm) && (
+                                  <div className="flex gap-2 mt-2">
+                                    {log.calories_burned && (
+                                      <span className="inline-flex items-center gap-1 bg-red-500/10 text-red-400 text-[10px] px-2 py-0.5 rounded-full border border-red-500/20">
+                                        <Flame className="w-3 h-3" /> {log.calories_burned} kcal
+                                      </span>
+                                    )}
+                                    {log.avg_bpm && (
+                                      <span className="inline-flex items-center gap-1 bg-rose-500/10 text-rose-400 text-[10px] px-2 py-0.5 rounded-full border border-rose-500/20">
+                                        <Activity className="w-3 h-3" /> {log.avg_bpm} bpm
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
                               </div>
                             </div>
 
@@ -3257,6 +3341,37 @@ export default function App() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* APPLE HEALTH SYNC MODAL */}
+      <AnimatePresence>
+        {isSyncingHealth && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-[100] backdrop-blur-md"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="bg-[#121212] border border-zinc-800 rounded-2xl w-full max-w-sm p-8 flex flex-col items-center text-center shadow-2xl"
+            >
+              <div className="w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center mb-4 relative overflow-hidden">
+                <motion.div 
+                  animate={{ scale: [1, 1.2, 1] }} 
+                  transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }}
+                  className="absolute inset-0 bg-red-500/20 rounded-full"
+                />
+                <Activity className="w-8 h-8 text-red-500 relative z-10" />
+              </div>
+              <h3 className="font-display text-xl font-bold text-white mb-2">Sinkronisasi Apple Health</h3>
+              <p className="text-sm text-zinc-400">Menarik data kalori aktif dan detak jantung dari Apple Watch...</p>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
     </div>
   );
 }
