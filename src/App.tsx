@@ -1259,12 +1259,13 @@ export default function App() {
         {/* Create Profile Dialog Pop-up */}
         <AnimatePresence>
           {showCreateDialog && (
-            <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50 animate-fade-in backdrop-blur-sm">
+            <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50 backdrop-blur-sm" onClick={() => setShowCreateDialog(false)}>
               <motion.div 
                 initial={{ scale: 0.95, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.95, opacity: 0 }}
-                className="bg-[#201f1f] border border-[#444933] rounded-2xl w-full max-w-md p-6 relative overflow-hidden"
+                onClick={e => e.stopPropagation()}
+                className="bg-[#201f1f] border border-[#444933] rounded-2xl w-full max-w-sm p-5 relative overflow-hidden"
               >
                 <div className="absolute top-0 left-0 w-full h-[3px] bg-[#c3f400]"></div>
                 <button 
@@ -1780,40 +1781,40 @@ export default function App() {
               </div>
 
               {/* Form parameters */}
-              <div className="bg-[#201f1f] rounded-2xl p-6 border border-[#444933] space-y-5">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="bg-[#201f1f] rounded-2xl p-4 border border-[#444933] space-y-4">
+                <div className="grid grid-cols-2 gap-3">
                   {/* Date Input */}
                   <div>
-                    <label className="block text-xs uppercase tracking-widest text-[#c4c9ac] font-bold mb-1">Tanggal</label>
+                    <label className="block text-[11px] uppercase tracking-wide text-zinc-500 font-semibold mb-1">Tanggal</label>
                     <input 
                       type="date"
                       value={loggerDate}
                       onChange={(e) => setLoggerDate(e.target.value)}
-                      className="w-full bg-[#131313] border border-zinc-700 rounded-lg h-11 px-3 text-white focus:outline-none focus:border-[#c3f400] transition-colors"
+                      className="w-full bg-[#131313] border border-zinc-700 rounded-lg h-10 px-3 text-sm text-white focus:outline-none focus:border-[#c3f400]"
                     />
                   </div>
 
                   {/* Time From-To (optional) */}
                   <div>
-                    <label className="block text-xs uppercase tracking-widest text-[#c4c9ac] font-bold mb-1">Waktu (opsional)</label>
-                    <div className="flex gap-2 items-center">
+                    <label className="block text-[11px] uppercase tracking-wide text-zinc-500 font-semibold mb-1">Waktu</label>
+                    <div className="flex gap-1.5 items-center">
                       <input type="time" value={loggerTimeStart} onChange={e => setLoggerTimeStart(e.target.value)}
-                        className="flex-1 bg-[#131313] border border-zinc-700 rounded-lg h-11 px-3 text-white focus:outline-none focus:border-[#c3f400] transition-colors text-sm" />
-                      <span className="text-zinc-500 text-xs">—</span>
+                        className="flex-1 bg-[#131313] border border-zinc-700 rounded-lg h-10 px-2 text-sm text-white focus:outline-none focus:border-[#c3f400]" />
+                      <span className="text-zinc-600 text-xs">–</span>
                       <input type="time" value={loggerTimeEnd} onChange={e => setLoggerTimeEnd(e.target.value)}
-                        className="flex-1 bg-[#131313] border border-zinc-700 rounded-lg h-11 px-3 text-white focus:outline-none focus:border-[#c3f400] transition-colors text-sm" />
+                        className="flex-1 bg-[#131313] border border-zinc-700 rounded-lg h-10 px-2 text-sm text-white focus:outline-none focus:border-[#c3f400]" />
                     </div>
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-xs uppercase tracking-widest text-[#c4c9ac] font-bold mb-1">Lokasi Gym</label>
+                  <label className="block text-[11px] uppercase tracking-wide text-zinc-500 font-semibold mb-1">Lokasi Gym</label>
                     <input 
                       type="text"
                       placeholder="e.g. Muscle Prime Gym"
                       value={loggerLocation}
                       onChange={(e) => setLoggerLocation(e.target.value)}
-                      className="w-full bg-[#131313] border border-zinc-700 rounded-lg h-11 px-3 text-white focus:outline-none focus:border-[#c3f400] transition-colors"
+                      className="w-full bg-[#131313] border border-zinc-700 rounded-lg h-10 px-3 text-sm text-white focus:outline-none focus:border-[#c3f400]"
                     />
                   </div>
 
@@ -2847,9 +2848,10 @@ export default function App() {
       {/* PROFILE EDIT/DELETE MODAL */}
       <AnimatePresence>
         {showEditProfile && activeProfile && (
-          <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
+          <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50 backdrop-blur-sm" onClick={() => { setShowEditProfile(false); setConfirmDeleteProfile(false); }}>
             <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-[#201f1f] dark-card border border-[#444933] dark-border rounded-2xl w-full max-w-md p-6 relative ios-appear">
+              onClick={e => e.stopPropagation()}
+              className="bg-[#201f1f] border border-[#444933] rounded-2xl w-full max-w-sm p-5 relative">
               <div className="absolute top-0 left-0 w-full h-[3px] bg-[#c3f400]"></div>
               <button onClick={() => { setShowEditProfile(false); setConfirmDeleteProfile(false); }} className="absolute top-4 right-4 text-zinc-400 hover:text-white">
                 <X className="w-5 h-5" />
@@ -2893,15 +2895,19 @@ export default function App() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex flex-col"
+            className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex flex-col" onClick={() => setEditingLog(null)}
           >
             <motion.div 
               initial={{ y: '100%' }}
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-              className="bg-[#121212] w-full max-w-[430px] mx-auto mt-auto rounded-t-2xl border-t border-zinc-800 flex flex-col max-h-[92vh] overflow-hidden"
+              className="bg-[#121212] w-full max-w-[430px] mx-auto mt-auto rounded-t-2xl border-t border-zinc-800 flex flex-col max-h-[92vh] overflow-hidden" onClick={e => e.stopPropagation()}
             >
+              {/* Drag indicator */}
+              <div className="flex justify-center pt-3 pb-1">
+                <div className="w-10 h-1 bg-zinc-700 rounded-full"></div>
+              </div>
               {/* Sticky header */}
               <div className="flex justify-between items-center border-b border-zinc-800 p-4 shrink-0">
                 <div>
@@ -2919,10 +2925,9 @@ export default function App() {
               {/* Scrollable content */}
               <div className="flex-1 overflow-y-auto p-4 space-y-5">
               <div className="space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {/* Date */}
+                <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs uppercase tracking-widest text-[#c4c9ac] font-bold mb-1">Tanggal</label>
+                    <label className="block text-[11px] uppercase tracking-wide text-zinc-500 font-semibold mb-1">Tanggal</label>
                     <input 
                       type="date"
                       value={editDate}
@@ -2932,19 +2937,20 @@ export default function App() {
                   </div>
 
                   <div>
-                    <label className="block text-xs uppercase tracking-widest text-[#c4c9ac] font-bold mb-1">Waktu (opsional)</label>
-                    <div className="flex gap-2 items-center">
+                    <label className="block text-[11px] uppercase tracking-wide text-zinc-500 font-semibold mb-1">Waktu</label>
+                    <div className="flex gap-1.5 items-center">
                       <input type="time" value={editTimeStart} onChange={e => setEditTimeStart(e.target.value)}
-                        className="flex-1 bg-[#1c1c1c] border border-zinc-700 rounded-lg h-10 px-3 text-xs text-white" />
-                      <span className="text-zinc-500 text-xs">—</span>
+                        className="flex-1 bg-[#1c1c1c] border border-zinc-700 rounded-lg h-10 px-2 text-xs text-white" />
+                      <span className="text-zinc-600 text-xs">–</span>
                       <input type="time" value={editTimeEnd} onChange={e => setEditTimeEnd(e.target.value)}
-                        className="flex-1 bg-[#1c1c1c] border border-zinc-700 rounded-lg h-10 px-3 text-xs text-white" />
+                        className="flex-1 bg-[#1c1c1c] border border-zinc-700 rounded-lg h-10 px-2 text-xs text-white" />
                     </div>
                   </div>
+                </div>
 
                   {/* Location */}
                   <div>
-                    <label className="block text-xs uppercase tracking-widest text-[#c4c9ac] font-bold mb-1">Lokasi Gym (Opsional)</label>
+                    <label className="block text-[11px] uppercase tracking-wide text-zinc-500 font-semibold mb-1">Lokasi</label>
                     <input 
                       type="text"
                       placeholder="e.g. Muscle Prime Gym"
@@ -2953,7 +2959,6 @@ export default function App() {
                       className="w-full bg-[#1c1c1c] border border-zinc-700 rounded-lg h-10 px-3 text-xs text-white"
                     />
                   </div>
-                </div>
 
                 {/* Edit Focus string */}
                 <div>
