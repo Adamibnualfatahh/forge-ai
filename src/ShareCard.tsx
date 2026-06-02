@@ -105,10 +105,22 @@ export default function ShareCard(props: Props) {
 
     // Analogy text above stats
     if (showAnalogy && totalVolume > 0) {
+      const analogyText = getAnimalText(totalVolume);
       ctx.textAlign = 'left';
       ctx.fillStyle = 'rgba(255,255,255,0.7)';
-      ctx.font = font('500', 32);
-      ctx.fillText(getAnimalText(totalVolume), 80, H - 460);
+      ctx.font = font('500', 30);
+      // Word wrap analogy
+      const maxW = W - 160;
+      const words = analogyText.split(' ');
+      let line = '', aLines: string[] = [];
+      words.forEach(word => {
+        const test = line + word + ' ';
+        if (ctx.measureText(test).width > maxW) { aLines.push(line.trim()); line = word + ' '; }
+        else line = test;
+      });
+      aLines.push(line.trim());
+      const aY = H - 420;
+      aLines.forEach((l, i) => ctx.fillText(l, 80, aY + i * 38));
     }
 
     // Bottom stats - clean white boxes
@@ -173,7 +185,10 @@ export default function ShareCard(props: Props) {
 
         {step === 'pick' && (
           <div className="space-y-3">
-            <h3 className="text-white font-display font-bold text-lg text-center">Share Workout</h3>
+            <div className="flex justify-between items-center">
+              <h3 className="text-white font-display font-bold text-lg">Share Workout</h3>
+              <button onClick={onClose} className="text-zinc-400 p-2"><X className="w-5 h-5" /></button>
+            </div>
             <label className="flex items-center justify-center gap-2 bg-white text-black font-bold py-4 rounded-xl text-sm cursor-pointer">
               <Camera className="w-5 h-5" /> Ambil Foto
               <input type="file" accept="image/*" capture="environment" onChange={handlePhoto} className="hidden" />
@@ -233,6 +248,9 @@ export default function ShareCard(props: Props) {
 
         {step === 'preview' && (
           <>
+            <div className="flex justify-end">
+              <button onClick={onClose} className="text-zinc-400 p-2"><X className="w-5 h-5" /></button>
+            </div>
             <div className="rounded-2xl overflow-hidden border border-zinc-800 aspect-[9/16]">
               <img src={imageUrl} alt="Preview" className="w-full h-full object-cover" />
             </div>

@@ -1782,8 +1782,7 @@ export default function App() {
 
               {/* Form parameters */}
               <div className="bg-[#201f1f] rounded-2xl p-4 border border-[#444933] space-y-4">
-                <div className="grid grid-cols-2 gap-3">
-                  {/* Date Input */}
+                <div className="space-y-3">
                   <div>
                     <label className="block text-[11px] uppercase tracking-wide text-zinc-500 font-semibold mb-1">Tanggal</label>
                     <input 
@@ -1793,16 +1792,14 @@ export default function App() {
                       className="w-full bg-[#131313] border border-zinc-700 rounded-lg h-10 px-3 text-sm text-white focus:outline-none focus:border-[#c3f400]"
                     />
                   </div>
-
-                  {/* Time From-To (optional) */}
                   <div>
-                    <label className="block text-[11px] uppercase tracking-wide text-zinc-500 font-semibold mb-1">Waktu</label>
-                    <div className="flex gap-1.5 items-center">
+                    <label className="block text-[11px] uppercase tracking-wide text-zinc-500 font-semibold mb-1">Waktu (opsional)</label>
+                    <div className="flex gap-2 items-center">
                       <input type="time" value={loggerTimeStart} onChange={e => setLoggerTimeStart(e.target.value)}
-                        className="flex-1 bg-[#131313] border border-zinc-700 rounded-lg h-10 px-2 text-sm text-white focus:outline-none focus:border-[#c3f400]" />
-                      <span className="text-zinc-600 text-xs">–</span>
+                        className="flex-1 bg-[#131313] border border-zinc-700 rounded-lg h-10 px-3 text-sm text-white focus:outline-none focus:border-[#c3f400]" />
+                      <span className="text-zinc-600 text-sm">–</span>
                       <input type="time" value={loggerTimeEnd} onChange={e => setLoggerTimeEnd(e.target.value)}
-                        className="flex-1 bg-[#131313] border border-zinc-700 rounded-lg h-10 px-2 text-sm text-white focus:outline-none focus:border-[#c3f400]" />
+                        className="flex-1 bg-[#131313] border border-zinc-700 rounded-lg h-10 px-3 text-sm text-white focus:outline-none focus:border-[#c3f400]" />
                     </div>
                   </div>
                 </div>
