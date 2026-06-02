@@ -1,0 +1,16 @@
+{
+  "name": "Forge AI",
+  "short_name": "Forge AI",
+  "description": "High-Performance Athletic System, featuring Workout Planner, Body Recomposition Analysis, and motivational Chat Trainer.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#000000",
+  "theme_color": "#c3f400",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "type": "image/svg+xml",
+      "sizes": "192x192 512x512"
+    }
+  ]
+}

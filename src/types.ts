@@ -1,0 +1,62 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+export interface Exercise {
+  name: string;
+  sets: number;
+  reps: string;
+  notes: string;
+  is_cardio?: boolean;
+  duration_minutes?: number;
+  weight_kg?: number;
+}
+
+export interface WorkoutPlan {
+  focus: string;
+  exercises: Exercise[];
+}
+
+export interface Profile {
+  id: string;
+  name: string;
+  avatar: string;
+  height: number;
+  weight: number;
+  target_weight: number;
+  focus_area: string;
+  streak: number;
+  total_sessions: number;
+}
+
+export interface WorkoutLog {
+  id: string;
+  profile_id: string;
+  date: string;
+  focus: string;
+  location: string;
+  equipment: string; // Comma separated or array in code
+  exercises: Exercise[];
+}
+
+export interface RecompAnalysis {
+  id: string;
+  profile_id: string;
+  height: number;
+  weight: number;
+  bmi: number;
+  analysis: string;
+  focus_type: 'Caloric Deficit' | 'Surplus' | 'Maintenance';
+  protein: number;
+  calories: number;
+  timestamp: number;
+}
+
+export interface ChatMessage {
+  id: string;
+  profile_id: string;
+  sender: 'user' | 'assistant';
+  message: string;
+  timestamp: number;
+}

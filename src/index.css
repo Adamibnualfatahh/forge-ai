@@ -1,0 +1,43 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@600;700;800&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Sora", sans-serif;
+  
+  --color-brand-primary: #c3f400;
+  --color-brand-secondary: #a6e6ff;
+  --color-brand-surface: #131313;
+  --color-brand-surface-card: #201f1f;
+  
+  --radius-custom-lg: 1rem;
+  --radius-custom-xl: 1.5rem;
+}
+
+/* Base custom definitions */
+@layer base {
+  body {
+    background-color: #0d0d0d;
+    color: #e5e2e1;
+    font-family: var(--font-sans);
+  }
+}
+
+/* Custom visual styles */
+.ai-glow {
+  box-shadow: 0 0 20px rgba(195, 244, 0, 0.12);
+}
+
+.secondary-glow {
+  box-shadow: 0 0 20px rgba(166, 230, 255, 0.12);
+}
+
+/* Hide scrollbars elegantly */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none; /* Firefox */
+}
+
