@@ -1789,7 +1789,7 @@ export default function App() {
                       type="date"
                       value={loggerDate}
                       onChange={(e) => setLoggerDate(e.target.value)}
-                      className="w-full bg-[#131313] border border-zinc-700 rounded-lg h-10 px-3 text-sm text-white focus:outline-none focus:border-[#c3f400]"
+                      className="w-full max-w-[220px] bg-[#131313] border border-zinc-700 rounded-lg h-10 px-3 text-sm text-white focus:outline-none focus:border-[#c3f400]"
                     />
                   </div>
                   <div>
@@ -2922,14 +2922,14 @@ export default function App() {
               {/* Scrollable content */}
               <div className="flex-1 overflow-y-auto p-4 space-y-5">
               <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-3">
                   <div>
                     <label className="block text-[11px] uppercase tracking-wide text-zinc-500 font-semibold mb-1">Tanggal</label>
                     <input 
                       type="date"
                       value={editDate}
                       onChange={(e) => setEditDate(e.target.value)}
-                      className="w-full bg-[#1c1c1c] border border-zinc-700 rounded-lg h-10 px-3 text-xs text-white"
+                      className="w-full max-w-[220px] bg-[#1c1c1c] border border-zinc-700 rounded-lg h-10 px-3 text-xs text-white"
                     />
                   </div>
 
