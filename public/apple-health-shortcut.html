@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Forge AI - Apple Health Shortcut Installer</title>
+<style>
+body { background: #0a0a0a; color: #fff; font-family: -apple-system, BlinkMacSystemFont, sans-serif; padding: 20px; max-width: 430px; margin: 0 auto; }
+h1 { font-size: 1.3rem; text-align: center; }
+.card { background: #1a1a1a; border: 1px solid #333; border-radius: 16px; padding: 20px; margin: 16px 0; }
+.btn { display: block; width: 100%; background: #c3f400; color: #000; font-weight: 800; text-align: center; padding: 14px; border-radius: 12px; text-decoration: none; font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 12px; }
+.btn:active { opacity: 0.8; }
+ol { padding-left: 20px; line-height: 1.8; font-size: 14px; color: #ccc; }
+code { background: #222; padding: 2px 6px; border-radius: 4px; color: #c3f400; font-size: 12px; }
+.note { font-size: 12px; color: #888; text-align: center; margin-top: 12px; }
+</style>
+</head>
+<body>
+<h1>⚡ Forge AI<br>Apple Health Auto-Sync</h1>
+
+<div class="card">
+<p style="font-size:13px;color:#aaa;">Shortcut ini akan otomatis mengirim data langkah (steps), kalori aktif, dan menit latihan dari Apple Health ke Forge AI setiap hari.</p>
+<a class="btn" href="https://www.icloud.com/shortcuts/forge-ai-health-sync" id="shortcutLink">📲 Install Shortcut</a>
+<p class="note">⚠️ Jika link iCloud tidak tersedia, ikuti panduan manual di bawah.</p>
+</div>
+
+<div class="card">
+<h3 style="font-size:14px;margin:0 0 12px;">📋 Setup Manual (2 menit)</h3>
+<ol>
+<li>Buka app <strong>Shortcuts</strong></li>
+<li>Tap <strong>+</strong> → nama: "Forge AI Sync"</li>
+<li>Add action: <strong>Find Health Samples</strong><br>
+  → Type: <code>Steps</code>, Start Date: <code>Start of Today</code>, Sort: Latest, Limit: 1</li>
+<li>Add action: <strong>Get Contents of URL</strong><br>
+  → URL: <code>https://forge-ai-lilac.vercel.app/api/profiles/adam/apple-health</code><br>
+  → Method: <code>POST</code><br>
+  → Headers: <code>Content-Type</code> = <code>application/json</code><br>
+  → Body (JSON):</li>
+</ol>
+<pre style="background:#000;padding:12px;border-radius:8px;font-size:11px;overflow-x:auto;color:#ccc;margin:8px 0;">
+{
+  "data": [
+    {
+      "type": "steps",
+      "value": <span style="color:#c3f400">[Health Samples]</span>,
+      "unit": "count",
+      "date": "<span style="color:#c3f400">[Current Date: yyyy-MM-dd]</span>"
+    }
+  ]
+}
+</pre>
+<ol start="5">
+<li>Untuk tambah kalori: duplikat "Find Health Samples" dengan Type: <code>Active Energy Burned</code>, tambah object ke array <code>data</code> dengan type: <code>"activeEnergy"</code></li>
+<li>Buka tab <strong>Automation</strong> → <strong>+</strong> → Time of Day → 23:00 → Run Immediately → pilih shortcut "Forge AI Sync"</li>
+</ol>
+</div>
+
+<a class="btn" href="shortcuts://create-shortcut" style="background:#333;color:#fff;">Buka App Shortcuts</a>
+</body>
+</html>

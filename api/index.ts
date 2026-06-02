@@ -969,7 +969,35 @@ app.delete("/api/profiles/:id/goals/:goalId", async (req, res) => {
   } catch (e) { res.status(500).json({ error: "Failed" }); }
 });
 
-// Apple Health Data Import
+// Apple Health Data Import (Simple GET for iOS Shortcuts - no JSON needed)
+app.get("/api/profiles/:id/apple-health/sync", async (req, res) => {
+  const { id } = req.params;
+  const { steps, calories, exercise, distance, weight, date } = req.query;
+  const syncDate = (date as string) || new Date().toISOString().split("T")[0];
+  try {
+    const db = getDb();
+    const entries: { type: string; value: number; unit: string }[] = [];
+    if (steps) entries.push({ type: "steps", value: parseFloat(steps as string), unit: "count" });
+    if (calories) entries.push({ type: "activeEnergy", value: parseFloat(calories as string), unit: "kcal" });
+    if (exercise) entries.push({ type: "exerciseMinutes", value: parseFloat(exercise as string), unit: "min" });
+    if (distance) entries.push({ type: "distance", value: parseFloat(distance as string), unit: "km" });
+    if (weight) entries.push({ type: "bodyMass", value: parseFloat(weight as string), unit: "kg" });
+
+    for (const entry of entries) {
+      const entryId = `ah_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      await db.execute({
+        sql: "INSERT INTO apple_health (id, profile_id, type, value, unit, date, timestamp) VALUES (?,?,?,?,?,?,?)",
+        args: [entryId, id, entry.type, entry.value, entry.unit, syncDate, Date.now()]
+      });
+    }
+    res.json({ success: true, imported: entries.length, date: syncDate });
+  } catch (e) {
+    console.error("Apple Health sync failed:", e);
+    res.status(500).json({ error: "Failed" });
+  }
+});
+
+// Apple Health Data Import (POST with JSON body)
 app.post("/api/profiles/:id/apple-health", async (req, res) => {
   const { id } = req.params;
   try {
