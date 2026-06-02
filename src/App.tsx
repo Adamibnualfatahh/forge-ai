@@ -147,6 +147,8 @@ export default function App() {
     const today = new Date();
     return today.toISOString().split('T')[0];
   });
+  const [loggerTimeStart, setLoggerTimeStart] = useState("");
+  const [loggerTimeEnd, setLoggerTimeEnd] = useState("");
   const [loggerLocation, setLoggerLocation] = useState("Muscle Prime Gym");
   const [loggerEquipment, setLoggerEquipment] = useState<string[]>(["Barbell", "Dumbbells"]);
   const [loggerExercises, setLoggerExercises] = useState<Exercise[]>([
@@ -1773,9 +1775,21 @@ export default function App() {
                     />
                   </div>
 
-                  {/* Location Input */}
+                  {/* Time From-To (optional) */}
                   <div>
-                    <label className="block text-xs uppercase tracking-widest text-[#c4c9ac] font-bold mb-1">Lokasi Gym</label>
+                    <label className="block text-xs uppercase tracking-widest text-[#c4c9ac] font-bold mb-1">Waktu (opsional)</label>
+                    <div className="flex gap-2 items-center">
+                      <input type="time" value={loggerTimeStart} onChange={e => setLoggerTimeStart(e.target.value)}
+                        className="flex-1 bg-[#131313] border border-zinc-700 rounded-lg h-11 px-3 text-white focus:outline-none focus:border-[#c3f400] transition-colors text-sm" />
+                      <span className="text-zinc-500 text-xs">—</span>
+                      <input type="time" value={loggerTimeEnd} onChange={e => setLoggerTimeEnd(e.target.value)}
+                        className="flex-1 bg-[#131313] border border-zinc-700 rounded-lg h-11 px-3 text-white focus:outline-none focus:border-[#c3f400] transition-colors text-sm" />
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs uppercase tracking-widest text-[#c4c9ac] font-bold mb-1">Lokasi Gym</label>
                     <input 
                       type="text"
                       placeholder="e.g. Muscle Prime Gym"
@@ -1784,7 +1798,6 @@ export default function App() {
                       className="w-full bg-[#131313] border border-zinc-700 rounded-lg h-11 px-3 text-white focus:outline-none focus:border-[#c3f400] transition-colors"
                     />
                   </div>
-                </div>
 
                 {/* Equipment Chips selectable */}
                 <div className="space-y-2">
@@ -2087,10 +2100,10 @@ export default function App() {
                         onChange={(e) => setCustomExerciseName(e.target.value)}
                         className="w-full bg-[#201f1f] border border-zinc-700/80 rounded h-10 px-2.5 text-xs text-white"
                       />
-                      {customExerciseName.trim().length > 0 && (
+                      {customExerciseName.trim().length > 0 && !EXERCISE_DB.some(e => e.name === customExerciseName) && (
                         <div className="absolute top-full left-0 right-0 mt-1 bg-[#1a1a1a] border border-zinc-800 rounded-xl max-h-48 overflow-y-auto z-20 shadow-lg">
                           {searchExercises(customExerciseName).slice(0, 6).map(ex => (
-                            <button key={ex.name} type="button" onClick={() => { setCustomExerciseName(ex.name); setCustomExerciseIsCardio(ex.category === 'cardio'); }}
+                            <button key={ex.name} type="button" onMouseDown={(e) => { e.preventDefault(); setCustomExerciseName(ex.name); setCustomExerciseIsCardio(ex.category === 'cardio'); }}
                               className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-zinc-800 transition-colors text-left">
                               <MuscleIcon name={ex.name} size={32} />
                               <div>
