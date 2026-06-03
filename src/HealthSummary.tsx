@@ -56,34 +56,51 @@ function getDaysBetween(from: string, to: string): string[] {
   return days;
 }
 
-function Chart({ values, color, days, period }: { values: number[]; color: string; days: string[]; period: Period }) {
-  const max = Math.max(...values, 1);
-  const avg = values.length > 0 ? values.reduce((a, b) => a + b, 0) / values.filter(v => v > 0).length || 0 : 0;
+function Chart({ values, color, days, period, label, unit }: { values: number[]; color: string; days: string[]; period: Period; label: string; unit: string }) {
+  const [selected, setSelected] = useState<number | null>(null);
+  const avg = values.filter(v => v > 0).length > 0 ? values.reduce((a, b) => a + b, 0) / values.filter(v => v > 0).length : 0;
 
   // For M/6M/Y, show fewer bars (aggregate)
-  let bars: { value: number; label: string }[];
+  let bars: { value: number; label: string; dateLabel: string }[];
   if (period === "W") {
-    bars = values.map((v, i) => ({ value: v, label: days[i]?.slice(8) || "" }));
-  } else if (period === "M") {
-    bars = values.map((v, i) => ({ value: v, label: i % 5 === 0 ? days[i]?.slice(8) || "" : "" }));
-  } else {
-    // Aggregate by week for 6M/Y
-    const weekMap: Record<string, number> = {};
-    days.forEach((d, i) => {
-      const weekKey = d.slice(0, 7); // group by month for simplicity
-      weekMap[weekKey] = (weekMap[weekKey] || 0) + values[i];
+    bars = values.map((v, i) => {
+      const d = days[i] ? new Date(days[i] + "T00:00:00") : null;
+      return { value: v, label: days[i]?.slice(8) || "", dateLabel: d ? d.toLocaleDateString("id-ID", { weekday: "short", day: "numeric", month: "short" }) : "" };
     });
-    const entries = Object.entries(weekMap);
-    bars = entries.map(([k, v]) => ({ value: v / (period === "Y" ? 30 : 7), label: k.slice(5) }));
+  } else if (period === "M") {
+    bars = values.map((v, i) => {
+      const d = days[i] ? new Date(days[i] + "T00:00:00") : null;
+      return { value: v, label: i % 5 === 0 ? days[i]?.slice(8) || "" : "", dateLabel: d ? d.toLocaleDateString("id-ID", { day: "numeric", month: "short" }) : "" };
+    });
+  } else {
+    const weekMap: { key: string; value: number; count: number }[] = [];
+    const monthMap: Record<string, { total: number; count: number }> = {};
+    days.forEach((d, i) => {
+      const k = d.slice(0, 7);
+      if (!monthMap[k]) monthMap[k] = { total: 0, count: 0 };
+      monthMap[k].total += values[i];
+      monthMap[k].count++;
+    });
+    Object.entries(monthMap).forEach(([k, v]) => weekMap.push({ key: k, value: v.total / v.count, count: v.count }));
+    bars = weekMap.map(w => ({ value: w.value, label: w.key.slice(5), dateLabel: new Date(w.key + "-01").toLocaleDateString("id-ID", { month: "long", year: "numeric" }) }));
   }
 
   const barMax = Math.max(...bars.map(b => b.value), 1);
 
   return (
     <div className="space-y-1">
+      {/* Selected bar detail */}
+      {selected !== null && bars[selected] && (
+        <div className="flex items-center justify-between bg-zinc-900 rounded-lg px-3 py-1.5 mb-1">
+          <span className="text-[10px] text-zinc-400">{bars[selected].dateLabel}</span>
+          <span className="text-xs font-bold text-white">{bars[selected].value > 1000 ? `${(bars[selected].value / 1000).toFixed(1)}k` : Math.round(bars[selected].value).toLocaleString()} <span className="text-[9px] text-zinc-500">{unit}</span></span>
+        </div>
+      )}
       <div className="flex items-end gap-[1px] h-20">
         {bars.map((b, i) => (
-          <div key={i} className="flex-1 rounded-t-sm min-w-[2px]" style={{ height: `${Math.max((b.value / barMax) * 100, b.value > 0 ? 4 : 1)}%`, backgroundColor: color, opacity: b.value > 0 ? 0.8 : 0.15 }} />
+          <div key={i} onClick={() => setSelected(selected === i ? null : i)}
+            className="flex-1 rounded-t-sm min-w-[2px] cursor-pointer transition-opacity"
+            style={{ height: `${Math.max((b.value / barMax) * 100, b.value > 0 ? 4 : 1)}%`, backgroundColor: color, opacity: selected === null ? 0.7 : selected === i ? 1 : 0.3 }} />
         ))}
       </div>
       {bars.length <= 31 && (
@@ -91,10 +108,12 @@ function Chart({ values, color, days, period }: { values: number[]; color: strin
           {bars.map((b, i) => <span key={i} className="flex-1 text-center text-[7px] text-zinc-600 truncate">{b.label}</span>)}
         </div>
       )}
-      <div className="flex items-center justify-between pt-1 border-t border-zinc-800/50">
-        <span className="text-[10px] text-zinc-500">Rata-rata</span>
-        <span className="text-xs font-bold text-zinc-300">{avg > 1000 ? `${(avg / 1000).toFixed(1)}k` : Math.round(avg).toLocaleString()}</span>
-      </div>
+      {selected === null && (
+        <div className="flex items-center justify-between pt-1 border-t border-zinc-800/50">
+          <span className="text-[10px] text-zinc-500">Rata-rata</span>
+          <span className="text-xs font-bold text-zinc-300">{avg > 1000 ? `${(avg / 1000).toFixed(1)}k` : Math.round(avg).toLocaleString()} <span className="text-[9px] text-zinc-500">{unit}</span></span>
+        </div>
+      )}
     </div>
   );
 }
@@ -163,7 +182,7 @@ export default function HealthSummary({ profileId }: { profileId: string }) {
           <span className="text-sm font-bold text-white">{todaySteps.toLocaleString()}</span>
           <span className="text-[9px] text-zinc-500">langkah hari ini</span>
         </div>
-        <Chart values={stepsArr} color="#c3f400" days={days} period={period} />
+        <Chart values={stepsArr} color="#c3f400" days={days} period={period} label="Langkah" unit="langkah" />
       </div>
 
       {/* Calories */}
@@ -173,7 +192,7 @@ export default function HealthSummary({ profileId }: { profileId: string }) {
           <span className="text-sm font-bold text-white">{Math.round(todayCals).toLocaleString()}</span>
           <span className="text-[9px] text-zinc-500">kcal hari ini</span>
         </div>
-        <Chart values={calsArr} color="#ff6b35" days={days} period={period} />
+        <Chart values={calsArr} color="#ff6b35" days={days} period={period} label="Kalori" unit="kcal" />
       </div>
     </div>
   );
