@@ -25,7 +25,7 @@ export default function HealthSummary({ profileId }: { profileId: string }) {
   const [data, setData] = useState<HealthEntry[]>([]);
 
   useEffect(() => {
-    fetch(`/api/profiles/${profileId}/apple-health`)
+    fetch(`/api/profiles/${profileId}/apple-health?_t=${Date.now()}`)
       .then(r => r.json())
       .then(json => { setData(Array.isArray(json) ? json : Array.isArray(json.data) ? json.data : []); })
       .catch(() => {});

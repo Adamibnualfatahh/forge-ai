@@ -88,10 +88,6 @@ export default function AppleHealth({ profileId }: { profileId: string }) {
     setUploadResult(null);
     try {
       const text = await file.text();
-      // Parse XML client-side (Apple Health exports can be 100MB+, can't upload to serverless)
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(text, "text/xml");
-      const records = doc.querySelectorAll("Record");
 
       const relevantTypes: Record<string, string> = {
         "HKQuantityTypeIdentifierStepCount": "steps",
@@ -104,30 +100,30 @@ export default function AppleHealth({ profileId }: { profileId: string }) {
         "HKQuantityTypeIdentifierAppleExerciseTime": "exerciseMinutes",
       };
 
-      // Aggregate by date + type
+      // Use regex to extract Record attributes (DOMParser chokes on Apple Health DTD)
+      const recordRegex = /<Record\s([^>]+?)\/?>(?:\s*<[^>]*>)*?(?:\s*<\/Record>)?/g;
       const aggregated: Record<string, { type: string; value: number; unit: string; date: string }> = {};
       let scanned = 0;
 
-      records.forEach(r => {
-        const rType = r.getAttribute("type") || "";
-        if (!relevantTypes[rType]) return;
+      let match;
+      while ((match = recordRegex.exec(text)) !== null) {
+        const attrs = match[1];
+        const typeMatch = attrs.match(/type="([^"]+)"/);
+        if (!typeMatch || !relevantTypes[typeMatch[1]]) continue;
+        const startMatch = attrs.match(/startDate="([^"]+)"/);
+        const valMatch = attrs.match(/value="([^"]+)"/);
+        const unitMatch = attrs.match(/unit="([^"]+)"/);
+        if (!startMatch || !valMatch) continue;
         scanned++;
-        const startDate = r.getAttribute("startDate") || "";
-        const date = startDate.slice(0, 10); // yyyy-MM-dd
-        if (!date) return;
-        const val = parseFloat(r.getAttribute("value") || "0") || 0;
-        const unit = r.getAttribute("unit") || "";
-        const key = `${date}_${rType}`;
-        if (!aggregated[key]) {
-          aggregated[key] = { type: relevantTypes[rType], value: 0, unit, date };
-        }
-        aggregated[key].value += val;
-      });
+        const date = startMatch[1].slice(0, 10);
+        const key = `${date}_${typeMatch[1]}`;
+        if (!aggregated[key]) aggregated[key] = { type: relevantTypes[typeMatch[1]], value: 0, unit: unitMatch?.[1] || "", date };
+        aggregated[key].value += parseFloat(valMatch[1]) || 0;
+      }
 
-      const entries = Object.values(aggregated);
-      // Send aggregated data to server in batches
-      const batchSize = 50;
+      const entries = Object.values(aggregated).map(e => ({ ...e, value: Math.round(e.value * 100) / 100 }));
       let imported = 0;
+      const batchSize = 50;
       for (let i = 0; i < entries.length; i += batchSize) {
         const batch = entries.slice(i, i + batchSize);
         const res = await fetch(`/api/profiles/${profileId}/apple-health`, {
