@@ -983,14 +983,20 @@ app.get("/api/profiles/:id/apple-health/sync", async (req, res) => {
     if (distance) entries.push({ type: "distance", value: parseFloat(distance as string), unit: "km" });
     if (weight) entries.push({ type: "bodyMass", value: parseFloat(weight as string), unit: "kg" });
 
+    const now = Date.now();
     for (const entry of entries) {
-      const entryId = `ah_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      // Delete existing record for same profile+date+type (anti-duplicate: replace strategy)
+      await db.execute({
+        sql: "DELETE FROM apple_health WHERE profile_id=? AND date=? AND type=?",
+        args: [id, syncDate, entry.type]
+      });
+      const entryId = `ah_${now}_${Math.random().toString(36).slice(2, 8)}`;
       await db.execute({
         sql: "INSERT INTO apple_health (id, profile_id, type, value, unit, date, timestamp) VALUES (?,?,?,?,?,?,?)",
-        args: [entryId, id, entry.type, entry.value, entry.unit, syncDate, Date.now()]
+        args: [entryId, id, entry.type, entry.value, entry.unit, syncDate, now]
       });
     }
-    res.json({ success: true, imported: entries.length, date: syncDate });
+    res.json({ success: true, imported: entries.length, date: syncDate, last_synced: now });
   } catch (e) {
     console.error("Apple Health sync failed:", e);
     res.status(500).json({ error: "Failed" });
@@ -1005,16 +1011,20 @@ app.post("/api/profiles/:id/apple-health", async (req, res) => {
     const body = req.body || {};
     const entries = Array.isArray(body.data) ? body.data : Array.isArray(body) ? body : [body];
     let imported = 0;
+    const now = Date.now();
     for (const entry of entries) {
       if (!entry || typeof entry !== 'object') continue;
-      const entryId = `ah_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      const type = entry.type || "unknown";
+      const date = entry.date || new Date().toISOString().split('T')[0];
+      await db.execute({ sql: "DELETE FROM apple_health WHERE profile_id=? AND date=? AND type=?", args: [id, date, type] });
+      const entryId = `ah_${now}_${Math.random().toString(36).slice(2, 8)}`;
       await db.execute({
         sql: "INSERT INTO apple_health (id, profile_id, type, value, unit, date, timestamp) VALUES (?,?,?,?,?,?,?)",
-        args: [entryId, id, entry.type || "unknown", entry.value ?? 0, entry.unit || "", entry.date || new Date().toISOString().split('T')[0], Date.now()]
+        args: [entryId, id, type, entry.value ?? 0, entry.unit || "", date, now]
       });
       imported++;
     }
-    res.json({ success: true, imported });
+    res.json({ success: true, imported, last_synced: now });
   } catch (e) {
     console.error("Apple Health import failed:", e);
     res.status(500).json({ error: "Failed to import Apple Health data" });
@@ -1025,8 +1035,9 @@ app.get("/api/profiles/:id/apple-health", async (req, res) => {
   const { id } = req.params;
   try {
     const db = getDb();
-    const result = await db.execute({ sql: "SELECT * FROM apple_health WHERE profile_id=? ORDER BY timestamp DESC LIMIT 50", args: [id] });
-    res.json(result.rows);
+    const result = await db.execute({ sql: "SELECT * FROM apple_health WHERE profile_id=? ORDER BY date DESC, timestamp DESC LIMIT 50", args: [id] });
+    const lastSync = await db.execute({ sql: "SELECT MAX(timestamp) as last_synced FROM apple_health WHERE profile_id=?", args: [id] });
+    res.json({ data: result.rows, last_synced: lastSync.rows[0]?.last_synced || null });
   } catch (e) { res.status(500).json({ error: "Failed" }); }
 });
 

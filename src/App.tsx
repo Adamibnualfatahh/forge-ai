@@ -54,6 +54,7 @@ import { getExerciseInfo, searchExercises, EXERCISE_DB, ExerciseInfo } from "./e
 import MuscleIcon from "./MuscleIcon";
 import ShareCard from "./ShareCard";
 import AppleHealth from "./AppleHealth";
+import HealthSummary from "./HealthSummary";
 
 import { useForgeStore } from "./store";
 
@@ -1450,13 +1451,6 @@ export default function App() {
                 </div>
                 {/* Visual state badges / Apple Health Toggle */}
                 <div className="flex items-center gap-2 mt-4 sm:mt-0">
-                  <button 
-                    onClick={() => setShowAppleHealth(true)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] sm:text-xs font-semibold transition-colors border bg-[#1a1a1a] text-zinc-400 border-zinc-800 hover:border-[#c3f400] hover:text-[#c3f400]"
-                  >
-                    <Activity className="w-3.5 h-3.5" />
-                    Apple Health
-                  </button>
                 </div>
               </div>
 
@@ -1505,6 +1499,9 @@ export default function App() {
                   );
                 })()}
               </div>
+
+              {/* APPLE HEALTH SUMMARY CHART */}
+              <HealthSummary profileId={activeProfile.id} />
 
               {/* DYNAMIC PLAN / START WORKOUT HERO AREA */}
               {!isActivelyTraining ? (
@@ -2961,6 +2958,11 @@ export default function App() {
                 {formError && showEditProfile && <p className="field-error-msg text-center">{formError}</p>}
                 <button onClick={handleEditProfile}
                   className="w-full bg-[#c3f400] text-black font-display font-bold py-3 rounded-xl">Simpan Perubahan</button>
+                <button onClick={() => { setShowEditProfile(false); setShowAppleHealth(true); }}
+                  className="w-full flex items-center justify-center gap-2 border border-zinc-700 text-zinc-300 hover:text-[#c3f400] hover:border-[#c3f400]/50 font-semibold py-3 rounded-xl text-xs uppercase tracking-wider transition-colors">
+                  <Activity className="w-4 h-4" />
+                  Kelola Apple Health
+                </button>
                 <div className="border-t border-zinc-800 pt-3">
                   {!confirmDeleteProfile ? (
                     <button onClick={() => setConfirmDeleteProfile(true)}
