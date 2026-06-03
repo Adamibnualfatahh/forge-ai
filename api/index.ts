@@ -1033,9 +1033,16 @@ app.post("/api/profiles/:id/apple-health", async (req, res) => {
 
 app.get("/api/profiles/:id/apple-health", async (req, res) => {
   const { id } = req.params;
+  const { from, to, type } = req.query;
   try {
     const db = getDb();
-    const result = await db.execute({ sql: "SELECT * FROM apple_health WHERE profile_id=? ORDER BY date DESC, timestamp DESC LIMIT 50", args: [id] });
+    let sql = "SELECT * FROM apple_health WHERE profile_id=?";
+    const args: any[] = [id];
+    if (from) { sql += " AND date >= ?"; args.push(from); }
+    if (to) { sql += " AND date <= ?"; args.push(to); }
+    if (type) { sql += " AND type = ?"; args.push(type); }
+    sql += " ORDER BY date DESC, timestamp DESC LIMIT 2000";
+    const result = await db.execute({ sql, args });
     const lastSync = await db.execute({ sql: "SELECT MAX(timestamp) as last_synced FROM apple_health WHERE profile_id=?", args: [id] });
     res.json({ data: result.rows, last_synced: lastSync.rows[0]?.last_synced || null });
   } catch (e) { res.status(500).json({ error: "Failed" }); }
