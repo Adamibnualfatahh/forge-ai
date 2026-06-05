@@ -171,6 +171,7 @@ export default function App() {
   const [customExerciseReps, setCustomExerciseReps] = useState("12");
   const [customExerciseNotes, setCustomExerciseNotes] = useState("");
   const [isGeneratingWorkoutPlan, setIsGeneratingWorkoutPlan] = useState(false);
+  const [isSavingLog, setIsSavingLog] = useState(false);
 
   // Cardio and weight properties for logging and tracking
   const [customExerciseIsCardio, setCustomExerciseIsCardio] = useState(false);
@@ -225,6 +226,7 @@ export default function App() {
   const [chatInput, setChatInput] = useState("");
   const [isSendingChat, setIsSendingChat] = useState(false);
   const chatBottomRef = useRef<HTMLDivElement>(null);
+  const [isLoadingData, setIsLoadingData] = useState(false);
 
   // Load baseline profiles on mount
   useEffect(() => {
@@ -247,9 +249,12 @@ export default function App() {
   // Trigger dependencies load on active profile change
   useEffect(() => {
     if (activeProfile) {
-      fetchLogs(activeProfile.id);
-      fetchRecomp(activeProfile.id);
-      fetchChatHistory(activeProfile.id);
+      setIsLoadingData(true);
+      Promise.all([
+        fetchLogs(activeProfile.id),
+        fetchRecomp(activeProfile.id),
+        fetchChatHistory(activeProfile.id)
+      ]).finally(() => setIsLoadingData(false));
       setTbInput(activeProfile.height?.toString() || "");
       setBbInput(activeProfile.weight?.toString() || "");
       
@@ -314,6 +319,14 @@ export default function App() {
     } catch (err) {
       console.error(err);
     }
+  };
+
+  const clearChat = async () => {
+    if (!activeProfile) return;
+    try {
+      const res = await fetch(`/api/profiles/${activeProfile.id}/chat`, { method: "DELETE" });
+      if (res.ok) setChatHistory([]);
+    } catch (err) { console.error(err); }
   };
 
   // Scroll to bottom of chat
@@ -605,10 +618,11 @@ export default function App() {
 
   // Save manual/custom workout log
   const handleSaveWorkoutLog = async () => {
-    if (!activeProfile) return;
+    if (!activeProfile || isSavingLog) return;
     if (loggerExercises.length === 0) { setFormError("Tambahkan minimal 1 gerakan"); return; }
     if (!loggerDate) { setFormError("Tanggal wajib diisi"); return; }
     setFormError("");
+    setIsSavingLog(true);
     
     try {
       let mockCalories = null;
@@ -638,12 +652,14 @@ export default function App() {
         })
       });
 
-      if (!res.ok) { setFormError("Gagal menyimpan workout. Coba lagi."); return; }
+      if (!res.ok) { setFormError("Gagal menyimpan workout. Coba lagi."); setIsSavingLog(false); return; }
       await fetchLogs(activeProfile.id);
       await fetchProfiles();
       setCurrentTab('dashboard');
     } catch (err) {
       setFormError("Koneksi gagal. Periksa jaringan.");
+    } finally {
+      setIsSavingLog(false);
     }
   };
 
@@ -666,7 +682,8 @@ export default function App() {
   const [isSyncingHealth, setIsSyncingHealth] = useState(false);
 
   const submitActiveWorkout = async () => {
-    if (!activeProfile || !todayPlan) return;
+    if (!activeProfile || !todayPlan || isSavingLog) return;
+    setIsSavingLog(true);
 
     try {
       let mockCalories = null;
@@ -709,6 +726,8 @@ export default function App() {
       }
     } catch (err) {
       console.error(err);
+    } finally {
+      setIsSavingLog(false);
     }
   };
 
@@ -1293,14 +1312,7 @@ export default function App() {
             )}
           </div>
 
-          {/* Action Trigger Buttons */}
-          <button 
-            onClick={() => setShowCreateDialog(true)}
-            className="font-sans text-sm font-semibold text-[#c4c9ac] hover:text-white transition-colors flex items-center gap-2 px-6 py-3 rounded-full border border-zinc-800 hover:border-[#444933] bg-zinc-900/50 hover:bg-[#201f1f]"
-          >
-            <UserPlus className="w-4 h-4 text-[#c3f400]" />
-            Buat Profil Baru
-          </button>
+          {/* Registration closed - only Adam & Thiara allowed */}
         </motion.div>
 
         {/* Create Profile Dialog Pop-up */}
@@ -1389,6 +1401,21 @@ export default function App() {
   // ---------------- MAIN INNER APPLICATION CANVAS ----------------
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-[#e5e2e1] flex flex-col font-sans select-none" id="applet-viewport" style={{ maxWidth: '430px', margin: '0 auto' }}>
+      {/* Loading overlay */}
+      <AnimatePresence>
+        {isLoadingData && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] bg-[#0a0a0a]/90 backdrop-blur-sm flex flex-col items-center justify-center gap-4"
+          >
+            <div className="w-10 h-10 border-3 border-[#c3f400]/30 border-t-[#c3f400] rounded-full animate-spin" />
+            <p className="text-sm text-zinc-400 font-sans">Memuat data...</p>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* GLOBAL HEADER BAR */}
       <header className="ios-glass bg-[#121212]/80 dark-nav sticky top-0 z-40 border-b border-[#2c2c2c] dark-border pt-[env(safe-area-inset-top,16px)] pb-3 px-4 flex justify-between items-center">
         <div className="flex items-center gap-3">
@@ -1616,10 +1643,11 @@ export default function App() {
                   <div className="flex gap-3 items-center">
                     <button 
                       onClick={submitActiveWorkout}
-                      className="flex-1 bg-[#c3f400] hover:bg-[#abd600] text-black font-display font-extrabold py-4 px-4 rounded-xl flex items-center justify-center gap-2 transition-all"
+                      disabled={isSavingLog}
+                      className="flex-1 bg-[#c3f400] hover:bg-[#abd600] text-black font-display font-extrabold py-4 px-4 rounded-xl flex items-center justify-center gap-2 transition-all disabled:opacity-50"
                     >
                       <Award className="w-5 h-5" />
-                      Selesai & Simpan
+                      {isSavingLog ? "Menyimpan..." : "Selesai & Simpan"}
                     </button>
                     <button 
                       onClick={() => setIsActivelyTraining(false)}
@@ -1640,7 +1668,7 @@ export default function App() {
                   <h4 className="font-display font-bold text-white text-sm">Plan Hari Ini</h4>
                   <button onClick={generateWorkoutPlan} disabled={isGeneratingWorkoutPlan}
                     className="text-[11px] text-[#c3f400] font-bold flex items-center gap-1 disabled:opacity-50">
-                    <Sparkles className="w-3.5 h-3.5" /> {isGeneratingWorkoutPlan ? "..." : "Refresh"}
+                    {isGeneratingWorkoutPlan ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />} {isGeneratingWorkoutPlan ? "..." : "Refresh"}
                   </button>
                 </div>
                 {todayPlan && (
@@ -1945,8 +1973,8 @@ export default function App() {
                     disabled={isGeneratingWorkoutPlan}
                     className="w-full bg-zinc-900 border border-zinc-800 hover:border-[#444933] text-[#c3f400] hover:text-[#c3f400]/80 font-display font-black py-3.5 px-4 rounded-xl flex items-center justify-center gap-1.5 transition-all text-sm scale-down active:scale-95 disabled:opacity-50"
                   >
-                    <Sparkles className="w-4.5 h-4.5" />
-                    {isGeneratingWorkoutPlan ? "Generating..." : "Generate Plan Baru"}
+                    {isGeneratingWorkoutPlan ? <RefreshCw className="w-4.5 h-4.5 animate-spin" /> : <Sparkles className="w-4.5 h-4.5" />}
+                    {isGeneratingWorkoutPlan ? "Generating Plan..." : "Generate Plan Baru"}
                   </button>
                 </div>
               </div>
@@ -1960,6 +1988,13 @@ export default function App() {
 
                 {/* Draft Exercises List */}
                 <div className="space-y-3">
+                  {isGeneratingWorkoutPlan && loggerExercises.length === 0 && (
+                    <>
+                      {[1,2,3,4].map(i => (
+                        <div key={i} className="animate-pulse bg-zinc-900/50 rounded-xl h-20 border border-zinc-800/50" />
+                      ))}
+                    </>
+                  )}
                   {loggerExercises.map((item, idx) => {
                     const isInlineEditing = editingLoggerExIndex === idx;
 
@@ -2265,11 +2300,11 @@ export default function App() {
               {formError && currentTab === 'logger' && <p className="field-error-msg text-center">{formError}</p>}
               <button 
                 onClick={handleSaveWorkoutLog}
-                disabled={loggerExercises.length === 0}
-                className="w-full bg-[#c3f400] text-black font-display font-black py-4 px-4 rounded-xl flex items-center justify-center gap-2 transition-all text-md shadow-[0_4px_15px_rgba(195,244,0,0.2)]"
+                disabled={loggerExercises.length === 0 || isSavingLog}
+                className="w-full bg-[#c3f400] text-black font-display font-black py-4 px-4 rounded-xl flex items-center justify-center gap-2 transition-all text-md shadow-[0_4px_15px_rgba(195,244,0,0.2)] disabled:opacity-50"
               >
                 <CheckCircle2 className="w-5 h-5 fill-black/10" />
-                Simpan Workout
+                {isSavingLog ? "Menyimpan..." : "Simpan Workout"}
               </button>
             </motion.div>
           )}
@@ -2467,7 +2502,9 @@ export default function App() {
                   <div className="w-3.5 h-3.5 rounded-full bg-[#c3f400] animate-pulse"></div>
                   <span className="font-display font-bold text-sm text-white tracking-tight">Chat Trainer</span>
                 </div>
-                <span className="font-sans text-[10px] font-medium text-zinc-500">Online</span>
+                <button onClick={clearChat} className="text-[10px] font-medium text-zinc-500 hover:text-red-400 transition-colors flex items-center gap-1">
+                  <Trash2 className="w-3 h-3" /> Clear
+                </button>
               </div>
 
               {/* Chat Thread Panel */}
