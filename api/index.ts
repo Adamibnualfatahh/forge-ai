@@ -50,6 +50,24 @@ function getAi() {
   return aiClient;
 }
 
+// AI model with auto-fallback on rate limit/overload
+const MODELS = ["gemini-2.5-flash", "gemini-2.0-flash"];
+async function generateAI(opts: { prompt: string; json?: boolean }) {
+  const ai = getAi();
+  for (const model of MODELS) {
+    try {
+      const config: any = {};
+      if (opts.json) config.responseMimeType = "application/json";
+      const response = await ai.models.generateContent({ model, contents: opts.prompt, config });
+      return response.text || "";
+    } catch (err: any) {
+      if ((err?.status === 503 || err?.status === 429) && model !== MODELS[MODELS.length - 1]) continue;
+      throw err;
+    }
+  }
+  return "";
+}
+
 // Initialize tables
 let dbInitialized = false;
 async function initDb() {
@@ -246,26 +264,18 @@ app.post("/api/profiles", async (req, res) => {
   const { id, name, height, weight, target_weight, focus_area } = req.body;
   const lowercaseId = id ? id.toLowerCase() : name.toLowerCase().replace(/\s+/g, "_");
   
+  // Lock registration - only allow existing profiles (adam & thiara)
+  const ALLOWED_PROFILES = ["adam", "thiara"];
+  if (!ALLOWED_PROFILES.includes(lowercaseId)) {
+    return res.status(403).json({ error: "Registrasi ditutup. Hanya profil yang sudah terdaftar yang bisa digunakan." });
+  }
+  
   try {
     const db = getDb();
-    const check = await db.execute({
-      sql: "SELECT * FROM profiles WHERE id = ?",
-      args: [lowercaseId]
+    await db.execute({
+      sql: `UPDATE profiles SET name = ?, height = ?, weight = ?, target_weight = ?, focus_area = ? WHERE id = ?`,
+      args: [name, height || 170, weight || 70, target_weight || 65, focus_area || "Full Body", lowercaseId]
     });
-
-    if (check.rows.length > 0) {
-      await db.execute({
-        sql: `UPDATE profiles SET name = ?, height = ?, weight = ?, target_weight = ?, focus_area = ? WHERE id = ?`,
-        args: [name, height || 170, weight || 70, target_weight || 65, focus_area || "Full Body", lowercaseId]
-      });
-    } else {
-      const avatarPlaceholder = "https://lh3.googleusercontent.com/aida-public/AB6AXuAbQT_aWALW07Cd6ICo9_qrFRCuq6t9gakHs00cxzcOYFmmkmMhb7z3avcKkL6aA7wzvn1ZTddlVXeDeMPuOtHdmTvD19-BdAy8IkmF6_Fy2VCCfm8MPAEjDVj7yRM9Evy8sT89GRW3zIiPPVxCeOt-gWaiFnnTY5vN4Vb-34ks2LI0HgAvLnP4kW5zrf8DUwEr7RmTONrkTTHMUiR5pY1K69iC6bjqxnQ6CDobkC9eiTQ1tamtu1pI4n99Sy406A_NHtoPDRoclJ0";
-      await db.execute({
-        sql: `INSERT INTO profiles (id, name, avatar, height, weight, target_weight, focus_area, streak, total_sessions) 
-              VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0)`,
-        args: [lowercaseId, name, avatarPlaceholder, height || 170, weight || 70, target_weight || 65, focus_area || "Full Body"]
-      });
-    }
 
     const updated = await db.execute({
       sql: "SELECT * FROM profiles WHERE id = ?",
@@ -299,6 +309,31 @@ app.get("/api/profiles/:id/logs", async (req, res) => {
   }
 });
 
+// 3b. Paginated workout logs
+app.get("/api/profiles/:id/logs/paginated", async (req, res) => {
+  const profileId = req.params.id;
+  const limit = parseInt(req.query.limit as string) || 15;
+  const offset = parseInt(req.query.offset as string) || 0;
+  const focus = req.query.focus as string;
+  try {
+    const db = getDb();
+    let sql = "SELECT * FROM workouts WHERE profile_id = ?";
+    const args: any[] = [profileId];
+    if (focus) { sql += " AND focus = ?"; args.push(focus); }
+    sql += " ORDER BY date DESC LIMIT ? OFFSET ?";
+    args.push(limit, offset);
+    const result = await db.execute({ sql, args });
+    const logs = result.rows.map(row => ({
+      ...row,
+      exercises: typeof row.exercises === 'string' ? JSON.parse(row.exercises) : row.exercises
+    }));
+    res.json({ logs, hasMore: logs.length === limit });
+  } catch (error) {
+    console.error(error);
+    res.json({ logs: [], hasMore: false });
+  }
+});
+
 // 4. Save workout log for profile & increment sessions + streak
 app.post("/api/profiles/:id/logs", async (req, res) => {
   const profileId = req.params.id;
@@ -313,9 +348,35 @@ app.post("/api/profiles/:id/logs", async (req, res) => {
       args: [logId, profileId, date, focus, location, equipment, JSON.stringify(exercises)]
     });
 
-    await db.execute({
-      sql: "UPDATE profiles SET total_sessions = total_sessions + 1, streak = streak + 1 WHERE id = ?",
+    // Update profile stats - recalculate weekly streak
+    const allLogs = await db.execute({
+      sql: "SELECT date FROM workouts WHERE profile_id = ? ORDER BY date DESC",
       args: [profileId]
+    });
+    const dates = allLogs.rows.map(r => r.date as string);
+    const getWeekStart = (d: string) => {
+      const dt = new Date(d + "T00:00:00");
+      const day = dt.getDay();
+      const diff = day === 0 ? 6 : day - 1;
+      dt.setDate(dt.getDate() - diff);
+      return dt.toISOString().split('T')[0];
+    };
+    const uniqueWeeks = [...new Set(dates.map(getWeekStart))].sort().reverse();
+    let streak = 0;
+    const todayStr = new Date().toISOString().split('T')[0];
+    const currentWeek = getWeekStart(todayStr);
+    for (let i = 0; i < uniqueWeeks.length; i++) {
+      const expected = new Date(currentWeek);
+      expected.setDate(expected.getDate() - i * 7);
+      if (uniqueWeeks[i] === expected.toISOString().split('T')[0]) {
+        streak++;
+      } else {
+        break;
+      }
+    }
+    await db.execute({
+      sql: "UPDATE profiles SET total_sessions = total_sessions + 1, streak = ? WHERE id = ?",
+      args: [streak, profileId]
     });
 
     res.json({ success: true, logId });
@@ -345,9 +406,35 @@ app.delete("/api/profiles/:profileId/logs/:logId", async (req, res) => {
       args: [logId, profileId]
     });
 
-    await db.execute({
-      sql: "UPDATE profiles SET total_sessions = CASE WHEN total_sessions > 0 THEN total_sessions - 1 ELSE 0 END WHERE id = ?",
+    // Recalculate session count and weekly streak after delete
+    const remainingLogs = await db.execute({
+      sql: "SELECT date FROM workouts WHERE profile_id = ? ORDER BY date DESC",
       args: [profileId]
+    });
+    const dates = remainingLogs.rows.map(r => r.date as string);
+    const getWeekStart = (d: string) => {
+      const dt = new Date(d + "T00:00:00");
+      const day = dt.getDay();
+      const diff = day === 0 ? 6 : day - 1;
+      dt.setDate(dt.getDate() - diff);
+      return dt.toISOString().split('T')[0];
+    };
+    const uniqueWeeks = [...new Set(dates.map(getWeekStart))].sort().reverse();
+    let streak = 0;
+    const todayStr = new Date().toISOString().split('T')[0];
+    const currentWeek = getWeekStart(todayStr);
+    for (let i = 0; i < uniqueWeeks.length; i++) {
+      const expected = new Date(currentWeek);
+      expected.setDate(expected.getDate() - i * 7);
+      if (uniqueWeeks[i] === expected.toISOString().split('T')[0]) {
+        streak++;
+      } else {
+        break;
+      }
+    }
+    await db.execute({
+      sql: "UPDATE profiles SET total_sessions = ?, streak = ? WHERE id = ?",
+      args: [dates.length, streak, profileId]
     });
 
     res.json({ success: true });
@@ -455,15 +542,7 @@ Format data pengembalian harus berupa JSON VALID dengan struktur persis seperti 
 Aturan Penting:
 1. Hanya kembalikan output objek JSON yang valid tersebut. Jangan berikan teks pembuka atau penutup berformat markdown.`;
 
-        const response = await ai.models.generateContent({
-          model: "gemini-3.5-flash",
-          contents: prompt,
-          config: {
-            responseMimeType: "application/json"
-          }
-        });
-
-        const textOutput = response.text || "";
+        const textOutput = await generateAI({ prompt, json: true });
         const data = JSON.parse(textOutput.trim());
         
         focusType = data.focus_type || 'Maintenance';
@@ -591,7 +670,7 @@ app.post("/api/profiles/:id/chat", async (req, res) => {
         const ai = getAi();
         
         const historyRes = await db.execute({
-          sql: "SELECT sender, message FROM chat_history WHERE profile_id = ? ORDER BY timestamp DESC LIMIT 4",
+          sql: "SELECT sender, message FROM chat_history WHERE profile_id = ? ORDER BY timestamp DESC LIMIT 6",
           args: [profileId]
         });
         
@@ -601,27 +680,58 @@ app.post("/api/profiles/:id/chat", async (req, res) => {
           contextLines += `${row.sender === 'user' ? 'Klien' : 'Trainer'}: ${row.message}\n`;
         });
 
+        // Fetch training history for AI learning
+        const recentWorkouts = await db.execute({
+          sql: "SELECT date, focus, exercises FROM workouts WHERE profile_id = ? ORDER BY date DESC LIMIT 10",
+          args: [profileId]
+        });
+        let trainingContext = "";
+        const prs: Record<string, number> = {};
+        for (const row of recentWorkouts.rows) {
+          try {
+            const exs = typeof row.exercises === 'string' ? JSON.parse(row.exercises as string) : (row.exercises || []);
+            const names = (exs as any[]).map((e: any) => `${e.name}${e.weight_kg ? ` ${e.weight_kg}kg` : ''}`).join(', ');
+            trainingContext += `${row.date} [${row.focus}]: ${names}\n`;
+            for (const ex of exs as any[]) {
+              if (!ex.is_cardio && ex.weight_kg && (!prs[ex.name] || ex.weight_kg > prs[ex.name])) {
+                prs[ex.name] = ex.weight_kg;
+              }
+            }
+          } catch {}
+        }
+        const prList = Object.entries(prs).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([n, w]) => `${n}: ${w}kg`).join(', ');
+
+        // Fetch latest recomp
+        const recompRes = await db.execute({
+          sql: "SELECT bmi, focus_type, protein, calories FROM recomp_analyses WHERE profile_id = ? ORDER BY timestamp DESC LIMIT 1",
+          args: [profileId]
+        });
+        const recomp = recompRes.rows[0];
+
         const prompt = `Kamu adalah Forge AI, seorang Personal Trainer Profesional dan Ahli Gizi yang ditugaskan membimbing klien bernama ${clientName}.
 Gaya bicaramu santai, seru, asik, mendidik, penuh motivasi olahraga, dan menggunakan bahasa Indonesia gaul kekinian (seperti 'bro', 'sis', 'gaspol', 'gokil', 'mantap', 'aman', dll.).
 Jawab seluruh pertanyaan seputar kebugaran, pola makan, cara latihan, tips mengecilkan perut, dll. secara jelas dan akurat namun tetap ceria.
 
-Detail Klien saat ini:
-- Tinggi Badan: ${profile?.height || "belum dicatat"} cm
-- Berat Badan: ${profile?.weight || "belum dicatat"} kg
-- Rencana Fokus: ${profile?.focus_area || "belum ditentukan"}
+PROFIL KLIEN:
+- Tinggi: ${profile?.height || "?"} cm | Berat: ${profile?.weight || "?"} kg | Target: ${profile?.target_weight || "?"} kg
+- Fokus: ${profile?.focus_area || "belum ditentukan"}
+- Total Sesi: ${profile?.total_sessions || 0} | Weekly Streak: ${profile?.streak || 0} minggu
+${recomp ? `- BMI: ${recomp.bmi} | Program: ${recomp.focus_type} | Target Protein: ${recomp.protein}g | Kalori: ${recomp.calories} kcal` : ''}
 
-LOG REST CHAT TERAKHIR:
+RIWAYAT LATIHAN TERAKHIR (10 sesi):
+${trainingContext || "Belum ada riwayat latihan."}
+
+PERSONAL RECORDS (PR):
+${prList || "Belum ada PR."}
+
+PERCAKAPAN TERAKHIR:
 ${contextLines}
-User bertanya baru: "${message}"
 
-Berikan responsmu langsung sebagai asisten pelatih olahraga Forge AI!`;
+Klien bertanya: "${message}"
+
+Jawab sebagai Forge AI trainer yang SUDAH MENGENAL klien ini dengan baik berdasarkan data di atas. Berikan saran spesifik sesuai progress dan riwayat mereka.`;
         
-        const response = await ai.models.generateContent({
-          model: "gemini-3.5-flash",
-          contents: prompt
-        });
-
-        aiResponseText = response.text || "Siap bimbing jalan kebugaranmu! Gaspol!";
+        aiResponseText = await generateAI({ prompt }) || "Siap bimbing jalan kebugaranmu! Gaspol!";
       } catch (aiErr) {
         console.error("Gemini Chat Generation failed:", aiErr);
         aiResponseText = "Aman, Bro! Sistem AI agaknya lagi cooldown bentar, tapi intinya jangan lupa konsisten latihan beban, cukupi protein, dan tidur teratur ya! Ada pertanyaan lain?";
@@ -660,6 +770,19 @@ Berikan responsmu langsung sebagai asisten pelatih olahraga Forge AI!`;
   }
 });
 
+// 8b. Clear chat history
+app.delete("/api/profiles/:id/chat", async (req, res) => {
+  const profileId = req.params.id;
+  try {
+    const db = getDb();
+    await db.execute({ sql: "DELETE FROM chat_history WHERE profile_id = ?", args: [profileId] });
+    res.json({ success: true });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Failed to clear chat" });
+  }
+});
+
 // 9. Workout Planner AI Generator
 app.post("/api/workouts/generate", async (req, res) => {
   const { profileId, location, equipment, lastFocus, gymCompleteness, targetFocus } = req.body;
@@ -671,6 +794,14 @@ app.post("/api/workouts/generate", async (req, res) => {
       args: [profileId]
     });
     const clientName = profileRes.rows[0]?.name || "Klien";
+
+    // Fetch recent 7-day workout history to avoid redundant muscle groups
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const recentLogs = await db.execute({
+      sql: "SELECT date, focus FROM workouts WHERE profile_id = ? AND date >= ? ORDER BY date DESC",
+      args: [profileId, sevenDaysAgo]
+    });
+    const recentHistory = recentLogs.rows.map(r => `${r.date}: ${r.focus}`).join("\n") || "Belum ada riwayat minggu ini";
  
     let focus = "";
     let exercises = [];
@@ -687,8 +818,11 @@ INFORMASI SAAT INI:
 - Fokus latihan sebelumnya: ${lastFocus || "Pull Day"}
 - TARGET/FOKUS YANG DIINGINKAN HARI INI: ${targetFocus && targetFocus !== "Otomatis (Rekomendasi AI)" ? targetFocus : "Tentukan otomatis (rotasikan latihan agar seimbang)"}
 
+RIWAYAT LATIHAN 7 HARI TERAKHIR:
+${recentHistory}
+
 TUGAS UTAMA:
-Tentukan jenis fokus latihan hari ini (misalnya Push Day, Pull Day, Legs Day, Upper Body, Lower Body, atau Full Body) sesuai Target/Fokus yang diinginkan di atas. Jika terpilih "Otomatis", rotasikan latihan agar seimbang dan semua kelompok otot terlatih secara bergantian secara optimal. Buatlah daftar latihan (berisi 4-6 gerakan variatif sesuai peralatan yang dipilih).
+Tentukan jenis fokus latihan hari ini (misalnya Push Day, Pull Day, Legs Day, Upper Body, Lower Body, atau Full Body) sesuai Target/Fokus yang diinginkan di atas. Jika terpilih "Otomatis", rotasikan latihan agar seimbang dan semua kelompok otot terlatih secara bergantian secara optimal. PENTING: Jangan rekomendasikan kelompok otot yang sudah dilatih dalam 1-2 hari terakhir berdasarkan riwayat di atas agar otot mendapat waktu recovery yang cukup. Buatlah daftar latihan (berisi 4-6 gerakan variatif sesuai peralatan yang dipilih).
  
 ATURAN GENERASI:
 Jika peralatan terbatas (misalnya hanya Bodyweight atau Dumbbells), intensitas, volume, dan varian gerakan harus sangat disesuaikan (misalnya push up, squats, dumbbell chest press). Jika peralatan lengkap (Barbell, Cable, Machines), masukkan latihan seperti barbell squating, lat pulldown, cable crossovers.
@@ -709,15 +843,7 @@ Kembalikan response berupa JSON VALID yang persis dengan struktur ini:
 Aturan Keras:
 Hanya keluarkan hasil JSON saja tanpa teks pembuka/penutup markdown.`;
  
-        const response = await ai.models.generateContent({
-          model: "gemini-3.5-flash",
-          contents: prompt,
-          config: {
-            responseMimeType: "application/json"
-          }
-        });
- 
-        const textOutput = response.text || "";
+        const textOutput = await generateAI({ prompt, json: true });
         const data = JSON.parse(textOutput.trim());
         focus = data.focus || "Full Body Workout";
         exercises = data.exercises || [];
@@ -771,15 +897,25 @@ Format file kembalian berupa JSON VALID berstruktur:
 Aturan: Jangan sertakan blok pembuka/penutup markdown. Hanya kembalikan string JSON valid.`
       };
 
-      const response = await ai.models.generateContent({
-        model: "gemini-3.5-flash",
-        contents: { parts: [imagePart, promptPart] },
-        config: {
-          responseMimeType: "application/json"
+      const response = await (async () => {
+        const ai = getAi();
+        for (const model of MODELS) {
+          try {
+            const r = await ai.models.generateContent({
+              model,
+              contents: { parts: [imagePart, promptPart] },
+              config: { responseMimeType: "application/json" }
+            });
+            return r;
+          } catch (err: any) {
+            if ((err?.status === 503 || err?.status === 429) && model !== MODELS[MODELS.length - 1]) continue;
+            throw err;
+          }
         }
-      });
+        return null;
+      })();
 
-      const text = response.text || "{}";
+      const text = response?.text || "{}";
       const data = JSON.parse(text.trim());
       res.json(data);
     } else {

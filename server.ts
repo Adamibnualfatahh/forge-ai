@@ -81,6 +81,24 @@ function getAi() {
   return aiClient;
 }
 
+// AI model with auto-fallback on rate limit/overload
+const MODELS = ["gemini-2.5-flash", "gemini-2.0-flash"];
+async function generateAI(opts: { prompt: string; json?: boolean }) {
+  const ai = getAi();
+  for (const model of MODELS) {
+    try {
+      const config: any = {};
+      if (opts.json) config.responseMimeType = "application/json";
+      const response = await ai.models.generateContent({ model, contents: opts.prompt, config });
+      return response.text || "";
+    } catch (err: any) {
+      if ((err?.status === 503 || err?.status === 429) && model !== MODELS[MODELS.length - 1]) continue;
+      throw err;
+    }
+  }
+  return "";
+}
+
 // Initialize tables
 async function initDb() {
   try {
@@ -323,6 +341,31 @@ app.get("/api/profiles/:id/logs", async (req, res) => {
   }
 });
 
+// 3b. Paginated workout logs
+app.get("/api/profiles/:id/logs/paginated", async (req, res) => {
+  const profileId = req.params.id;
+  const limit = parseInt(req.query.limit as string) || 15;
+  const offset = parseInt(req.query.offset as string) || 0;
+  const focus = req.query.focus as string;
+  try {
+    const db = getDb();
+    let sql = "SELECT * FROM workouts WHERE profile_id = ?";
+    const args: any[] = [profileId];
+    if (focus) { sql += " AND focus = ?"; args.push(focus); }
+    sql += " ORDER BY date DESC LIMIT ? OFFSET ?";
+    args.push(limit, offset);
+    const result = await db.execute({ sql, args });
+    const logs = result.rows.map(row => ({
+      ...row,
+      exercises: typeof row.exercises === 'string' ? JSON.parse(row.exercises) : row.exercises
+    }));
+    res.json({ logs, hasMore: logs.length === limit });
+  } catch (error) {
+    console.error(error);
+    res.json({ logs: [], hasMore: false });
+  }
+});
+
 // 4. Save workout log for profile & increment sessions + streak
 app.post("/api/profiles/:id/logs", async (req, res) => {
   const profileId = req.params.id;
@@ -547,15 +590,7 @@ Format data pengembalian harus berupa JSON VALID dengan struktur persis seperti 
 Aturan Penting:
 1. Hanya kembalikan output objek JSON yang valid tersebut. Jangan berikan teks pembuka atau penutup berformat markdown.`;
 
-        const response = await ai.models.generateContent({
-          model: "gemini-3.5-flash",
-          contents: prompt,
-          config: {
-            responseMimeType: "application/json"
-          }
-        });
-
-        const textOutput = response.text || "";
+        const textOutput = await generateAI({ prompt, json: true });
         const data = JSON.parse(textOutput.trim());
         
         focusType = data.focus_type || 'Maintenance';
@@ -692,9 +727,9 @@ app.post("/api/profiles/:id/chat", async (req, res) => {
       try {
         const ai = getAi();
         
-        // Fetch recent context
+        // Fetch recent chat context
         const historyRes = await db.execute({
-          sql: "SELECT sender, message FROM chat_history WHERE profile_id = ? ORDER BY timestamp DESC LIMIT 4",
+          sql: "SELECT sender, message FROM chat_history WHERE profile_id = ? ORDER BY timestamp DESC LIMIT 6",
           args: [profileId]
         });
         
@@ -704,27 +739,58 @@ app.post("/api/profiles/:id/chat", async (req, res) => {
           contextLines += `${row.sender === 'user' ? 'Klien' : 'Trainer'}: ${row.message}\n`;
         });
 
+        // Fetch training history for AI learning
+        const recentWorkouts = await db.execute({
+          sql: "SELECT date, focus, exercises FROM workouts WHERE profile_id = ? ORDER BY date DESC LIMIT 10",
+          args: [profileId]
+        });
+        let trainingContext = "";
+        const prs: Record<string, number> = {};
+        for (const row of recentWorkouts.rows) {
+          try {
+            const exs = typeof row.exercises === 'string' ? JSON.parse(row.exercises as string) : (row.exercises || []);
+            const names = (exs as any[]).map((e: any) => `${e.name}${e.weight_kg ? ` ${e.weight_kg}kg` : ''}`).join(', ');
+            trainingContext += `${row.date} [${row.focus}]: ${names}\n`;
+            for (const ex of exs as any[]) {
+              if (!ex.is_cardio && ex.weight_kg && (!prs[ex.name] || ex.weight_kg > prs[ex.name])) {
+                prs[ex.name] = ex.weight_kg;
+              }
+            }
+          } catch {}
+        }
+        const prList = Object.entries(prs).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([n, w]) => `${n}: ${w}kg`).join(', ');
+
+        // Fetch latest recomp
+        const recompRes = await db.execute({
+          sql: "SELECT bmi, focus_type, protein, calories FROM recomp_analyses WHERE profile_id = ? ORDER BY timestamp DESC LIMIT 1",
+          args: [profileId]
+        });
+        const recomp = recompRes.rows[0];
+
         const prompt = `Kamu adalah Forge AI, seorang Personal Trainer Profesional dan Ahli Gizi yang ditugaskan membimbing klien bernama ${clientName}.
 Gaya bicaramu santai, seru, asik, mendidik, penuh motivasi olahraga, dan menggunakan bahasa Indonesia gaul kekinian (seperti 'bro', 'sis', 'gaspol', 'gokil', 'mantap', 'aman', dll.).
 Jawab seluruh pertanyaan seputar kebugaran, pola makan, cara latihan, tips mengecilkan perut, dll. secara jelas dan akurat namun tetap ceria.
 
-Detail Klien saat ini:
-- Tinggi Badan: ${profile?.height || "belum dicatat"} cm
-- Berat Badan: ${profile?.weight || "belum dicatat"} kg
-- Rencana Fokus: ${profile?.focus_area || "belum ditentukan"}
+PROFIL KLIEN:
+- Tinggi: ${profile?.height || "?"} cm | Berat: ${profile?.weight || "?"} kg | Target: ${profile?.target_weight || "?"} kg
+- Fokus: ${profile?.focus_area || "belum ditentukan"}
+- Total Sesi: ${profile?.total_sessions || 0} | Weekly Streak: ${profile?.streak || 0} minggu
+${recomp ? `- BMI: ${recomp.bmi} | Program: ${recomp.focus_type} | Target Protein: ${recomp.protein}g | Kalori: ${recomp.calories} kcal` : ''}
 
-LOG REST CHAT TERAKHIR:
+RIWAYAT LATIHAN TERAKHIR (10 sesi):
+${trainingContext || "Belum ada riwayat latihan."}
+
+PERSONAL RECORDS (PR):
+${prList || "Belum ada PR."}
+
+PERCAKAPAN TERAKHIR:
 ${contextLines}
-User bertanya baru: "${message}"
 
-Berikan responsmu langsung sebagai asisten pelatih olahraga Forge AI!`;
+Klien bertanya: "${message}"
 
-        const response = await ai.models.generateContent({
-          model: "gemini-3.5-flash",
-          contents: prompt
-        });
+Jawab sebagai Forge AI trainer yang SUDAH MENGENAL klien ini dengan baik berdasarkan data di atas. Berikan saran spesifik sesuai progress dan riwayat mereka.`;
 
-        aiResponseText = response.text || "Siap bimbing jalan kebugaranmu! Gaspol!";
+        aiResponseText = await generateAI({ prompt }) || "Siap bimbing jalan kebugaranmu! Gaspol!";
       } catch (aiErr) {
         console.error("Gemini Chat Generation failed:", aiErr);
         aiResponseText = "Aman, Bro! Sistem AI agaknya lagi cooldown bentar, tapi intinya jangan lupa konsisten latihan beban, cukupi protein, dan tidur teratur ya! Ada pertanyaan lain?";
@@ -840,15 +906,7 @@ Kembalikan response berupa JSON VALID yang persis dengan struktur ini:
 Aturan Keras:
 Hanya keluarkan hasil JSON saja tanpa teks pembuka/penutup markdown.`;
  
-        const response = await ai.models.generateContent({
-          model: "gemini-3.5-flash",
-          contents: prompt,
-          config: {
-            responseMimeType: "application/json"
-          }
-        });
- 
-        const textOutput = response.text || "";
+        const textOutput = await generateAI({ prompt, json: true });
         const data = JSON.parse(textOutput.trim());
         focus = data.focus || "Full Body Workout";
         exercises = data.exercises || [];
@@ -904,15 +962,21 @@ Format file kembalian berupa JSON VALID berstruktur:
 Aturan: Jangan sertakan blok pembuka/penutup markdown. Hanya kembalikan string JSON valid.`
       };
 
-      const response = await ai.models.generateContent({
-        model: "gemini-3.5-flash",
-        contents: { parts: [imagePart, promptPart] },
-        config: {
-          responseMimeType: "application/json"
+      let text = "{}";
+      for (const model of MODELS) {
+        try {
+          const response = await ai.models.generateContent({
+            model,
+            contents: { parts: [imagePart, promptPart] },
+            config: { responseMimeType: "application/json" }
+          });
+          text = response.text || "{}";
+          break;
+        } catch (err: any) {
+          if ((err?.status === 503 || err?.status === 429) && model !== MODELS[MODELS.length - 1]) continue;
+          throw err;
         }
-      });
-
-      const text = response.text || "{}";
+      }
       const data = JSON.parse(text.trim());
       res.json(data);
     } else {

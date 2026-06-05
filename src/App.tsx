@@ -122,6 +122,12 @@ export default function App() {
 
   // Share card after workout
   const [showShare, setShowShare] = useState(false);
+  const [newPRs, setNewPRs] = useState<{name: string; weight: number}[]>([]);
+  const [showFullHistory, setShowFullHistory] = useState(false);
+  const [historyLogs, setHistoryLogs] = useState<WorkoutLog[]>([]);
+  const [historyHasMore, setHistoryHasMore] = useState(false);
+  const [historyFilter, setHistoryFilter] = useState("");
+  const [historyLoading, setHistoryLoading] = useState(false);
   const [shareData, setShareData] = useState<{ focus: string; duration: number; exercises: Exercise[]; volume: number } | null>(null);
 
   // Dark/Light mode
@@ -226,6 +232,7 @@ export default function App() {
   const [chatInput, setChatInput] = useState("");
   const [isSendingChat, setIsSendingChat] = useState(false);
   const chatBottomRef = useRef<HTMLDivElement>(null);
+  const exercisesListRef = useRef<HTMLDivElement>(null);
   const [isLoadingData, setIsLoadingData] = useState(false);
 
   // Load baseline profiles on mount
@@ -258,26 +265,8 @@ export default function App() {
       setTbInput(activeProfile.height?.toString() || "");
       setBbInput(activeProfile.weight?.toString() || "");
       
-      // Default dynamic workout plan matching profile focus
-      const isLimited = activeProfile.focus_area?.toLowerCase().includes("limited") || false;
-      const initialExercises = activeProfile.id === 'thiara' 
-        ? [
-            { name: "Barbell Back Squats", sets: 4, reps: "8-10", notes: "Jaga dada tegak lurus, dorong dari dasar kaki." },
-            { name: "Leg Press Machine", sets: 4, reps: "12", notes: "Squeeze hamstring bergantian dengan betis." },
-            { name: "Dumbbell Romanian Deadlifts", sets: 3, reps: "12", notes: "Dorong pinggul ke belakang demi paha belakang." },
-            { name: "Plank Hold", sets: 3, reps: "60 detik", notes: "Kencangkan core, hindari pinggul kendur." }
-          ]
-        : [
-            { name: "Barbell Rows", sets: 4, reps: "10-12", notes: "Tarik ke pusar, kunci punggung tetap flat." },
-            { name: "Wide-Grip Lat Pulldown", sets: 4, reps: "12", notes: "Buat punggung lebar merata layaknya sayap." },
-            { name: "Incline Dumbbell Bicep Curls", sets: 3, reps: "10-12", notes: "Rentangkan lengan maksimal, rasakan regangannya." },
-            { name: "Hammer Curls", sets: 3, reps: "12", notes: "Squeeze brachialis demi lengan tegap tebal." }
-          ];
-
-      setTodayPlan({
-        focus: activeProfile.focus_area || "Pull Plan",
-        exercises: initialExercises
-      });
+      // Use last logged workout as today's plan context, or prompt to generate
+      setTodayPlan(null);
       
       // Reset training flow
       setIsActivelyTraining(false);
@@ -328,6 +317,27 @@ export default function App() {
       if (res.ok) setChatHistory([]);
     } catch (err) { console.error(err); }
   };
+
+  const fetchHistoryLogs = async (reset = false) => {
+    if (!activeProfile) return;
+    setHistoryLoading(true);
+    const offset = reset ? 0 : historyLogs.length;
+    const params = new URLSearchParams({ limit: '15', offset: String(offset) });
+    if (historyFilter) params.set('focus', historyFilter);
+    try {
+      const res = await fetch(`/api/profiles/${activeProfile.id}/logs/paginated?${params}`);
+      if (res.ok) {
+        const data = await res.json();
+        setHistoryLogs(prev => reset ? data.logs : [...prev, ...data.logs]);
+        setHistoryHasMore(data.hasMore);
+      }
+    } catch (err) { console.error(err); }
+    setHistoryLoading(false);
+  };
+
+  useEffect(() => {
+    if (showFullHistory) fetchHistoryLogs(true);
+  }, [showFullHistory]);
 
   // Scroll to bottom of chat
   useEffect(() => {
@@ -461,6 +471,8 @@ export default function App() {
           focus: planFocus,
           exercises: data.exercises
         });
+        // Smooth scroll to exercises
+        setTimeout(() => exercisesListRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
       }
     } catch (err) {
       console.error(err);
@@ -653,6 +665,18 @@ export default function App() {
       });
 
       if (!res.ok) { setFormError("Gagal menyimpan workout. Coba lagi."); setIsSavingLog(false); return; }
+      // Detect new PRs before refreshing logs
+      const prsBefore: Record<string, number> = {};
+      for (const log of logs) {
+        for (const ex of log.exercises) {
+          if (!ex.is_cardio && ex.weight_kg && (!prsBefore[ex.name] || ex.weight_kg > prsBefore[ex.name])) {
+            prsBefore[ex.name] = ex.weight_kg;
+          }
+        }
+      }
+      const detectedPRs = loggerExercises.filter(ex => !ex.is_cardio && ex.weight_kg && ex.weight_kg > (prsBefore[ex.name] || 0))
+        .map(ex => ({ name: ex.name, weight: ex.weight_kg! }));
+      if (detectedPRs.length > 0) setNewPRs(detectedPRs);
       await fetchLogs(activeProfile.id);
       await fetchProfiles();
       setCurrentTab('dashboard');
@@ -851,6 +875,46 @@ export default function App() {
       const weight = ex.weight_kg || 0;
       return acc + (sets * repsCount * weight);
     }, 0);
+  };
+
+  // Recovery Status - compute days since last workout per muscle group
+  const getRecoveryStatus = () => {
+    const muscleLastTrained: Record<string, string> = {};
+    for (const log of logs) {
+      for (const ex of log.exercises) {
+        if (ex.is_cardio) continue;
+        const info = getExerciseInfo(ex.name);
+        const cat = info?.category || 'other';
+        if (!muscleLastTrained[cat] || log.date > muscleLastTrained[cat]) {
+          muscleLastTrained[cat] = log.date;
+        }
+      }
+    }
+    const today = new Date();
+    const groups = ['chest', 'back', 'shoulders', 'arms', 'legs', 'core'];
+    return groups.map(g => {
+      const last = muscleLastTrained[g];
+      if (!last) return { group: g, days: -1, status: 'idle' as const };
+      const diff = Math.floor((today.getTime() - new Date(last + 'T00:00:00').getTime()) / 86400000);
+      const status = diff < 2 ? 'recovering' as const : 'ready' as const;
+      return { group: g, days: diff, status };
+    });
+  };
+
+  // PR Tracker - find heaviest weight per exercise
+  const getPersonalRecords = () => {
+    const prs: Record<string, { weight: number; date: string }> = {};
+    for (const log of logs) {
+      for (const ex of log.exercises) {
+        if (ex.is_cardio || !ex.weight_kg) continue;
+        if (!prs[ex.name] || ex.weight_kg > prs[ex.name].weight) {
+          prs[ex.name] = { weight: ex.weight_kg, date: log.date };
+        }
+      }
+    }
+    return Object.entries(prs)
+      .sort((a, b) => b[1].weight - a[1].weight)
+      .slice(0, 5);
   };
 
   const getAnimalAnalogy = (volumeKg: number): string => {
@@ -1416,6 +1480,112 @@ export default function App() {
         )}
       </AnimatePresence>
 
+      {/* New PR celebration */}
+      <AnimatePresence>
+        {newPRs.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-6"
+            onClick={() => setNewPRs([])}
+          >
+            <div className="bg-[#201f1f] border border-[#c3f400]/40 rounded-2xl p-6 max-w-sm w-full text-center">
+              <div className="text-4xl mb-3">🏆</div>
+              <h3 className="font-display text-xl font-black text-[#c3f400] mb-2">NEW PR!</h3>
+              <div className="space-y-2 mb-4">
+                {newPRs.map((pr, i) => (
+                  <p key={i} className="text-white font-medium">{pr.name}: <span className="text-[#c3f400] font-bold">{pr.weight} kg</span></p>
+                ))}
+              </div>
+              <p className="text-xs text-zinc-400">Tap untuk tutup</p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Full History View */}
+      <AnimatePresence>
+        {showFullHistory && (
+          <motion.div
+            initial={{ x: '100%' }}
+            animate={{ x: 0 }}
+            exit={{ x: '100%' }}
+            transition={{ type: 'tween', duration: 0.25 }}
+            className="fixed inset-0 z-[90] bg-[#0a0a0a] overflow-y-auto"
+            style={{ maxWidth: '430px', margin: '0 auto' }}
+          >
+            <div className="sticky top-0 z-10 bg-[#0a0a0a]/95 backdrop-blur-sm border-b border-zinc-800 p-4 flex items-center gap-3">
+              <button onClick={() => { setShowFullHistory(false); setHistoryLogs([]); setHistoryFilter(""); }} className="p-2 rounded-lg bg-zinc-900 border border-zinc-800 text-white">
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+              <h2 className="font-display text-lg font-bold text-white flex-1">Semua Riwayat</h2>
+            </div>
+
+            {/* Filter */}
+            <div className="p-4 pb-2">
+              <select
+                value={historyFilter}
+                onChange={(e) => { setHistoryFilter(e.target.value); setTimeout(() => fetchHistoryLogs(true), 0); }}
+                className="w-full bg-[#121212] border border-zinc-800 rounded-xl h-10 px-3 text-sm text-white focus:outline-none focus:border-[#c3f400]"
+              >
+                <option value="">Semua Fokus</option>
+                {[...new Set(logs.map(l => l.focus))].map(f => (
+                  <option key={f} value={f}>{f}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* History List */}
+            <div className="p-4 pt-2 space-y-3">
+              {historyLogs.map((log) => (
+                <div key={log.id} className="bg-[#121212] p-4 rounded-xl border border-zinc-800">
+                  <div className="flex justify-between items-start mb-2">
+                    <div>
+                      <span className="font-mono text-[10px] text-zinc-400 block">{log.date} {log.location ? `@ ${log.location}` : ""}</span>
+                      <h4 className="font-display text-sm font-bold text-white mt-1">{log.focus}</h4>
+                    </div>
+                    {calculateTotalVolume(log.exercises) > 0 && (
+                      <span className="text-[10px] font-bold text-[#c3f400] bg-[#c3f400]/10 px-2 py-1 rounded-full">{calculateTotalVolume(log.exercises)} kg</span>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {log.exercises?.map((ex, i) => (
+                      <span key={i} className="text-[10px] bg-zinc-900 border border-zinc-800/60 rounded px-2 py-0.5 text-zinc-300">
+                        {ex.name} {!ex.is_cardio && ex.weight_kg ? `${ex.weight_kg}kg` : ''}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ))}
+
+              {historyLoading && (
+                <div className="flex justify-center py-4">
+                  <RefreshCw className="w-5 h-5 text-[#c3f400] animate-spin" />
+                </div>
+              )}
+
+              {historyHasMore && !historyLoading && (
+                <button
+                  onClick={() => fetchHistoryLogs(false)}
+                  className="w-full py-3 rounded-xl border border-zinc-800 text-sm font-bold text-zinc-400 hover:text-white transition-colors"
+                >
+                  Muat Lagi...
+                </button>
+              )}
+
+              {!historyHasMore && historyLogs.length > 0 && (
+                <p className="text-center text-xs text-zinc-500 py-2">Semua riwayat sudah ditampilkan</p>
+              )}
+
+              {historyLogs.length === 0 && !historyLoading && (
+                <p className="text-center text-sm text-zinc-500 py-8">Tidak ada riwayat ditemukan</p>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* GLOBAL HEADER BAR */}
       <header className="ios-glass bg-[#121212]/80 dark-nav sticky top-0 z-40 border-b border-[#2c2c2c] dark-border pt-[env(safe-area-inset-top,16px)] pb-3 px-4 flex justify-between items-center">
         <div className="flex items-center gap-3">
@@ -1530,51 +1700,110 @@ export default function App() {
               {/* APPLE HEALTH SUMMARY CHART */}
               <HealthSummary profileId={activeProfile.id} />
 
+              {/* RECOVERY STATUS */}
+              {logs.length > 0 && (
+                <div className="bg-[#121212] rounded-xl p-5 border border-zinc-800/10">
+                  <h3 className="text-xs uppercase tracking-widest text-[#c4c9ac] font-bold mb-3">Recovery Status</h3>
+                  <div className="flex flex-wrap gap-2">
+                    {getRecoveryStatus().map(m => (
+                      <div key={m.group} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold ${m.status === 'recovering' ? 'bg-orange-500/10 text-orange-400 border border-orange-500/20' : m.status === 'ready' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-zinc-800/50 text-zinc-500 border border-zinc-700/30'}`}>
+                        <span>{m.status === 'recovering' ? '🔥' : m.status === 'ready' ? '✅' : '💤'}</span>
+                        <span className="capitalize">{m.group}</span>
+                        {m.days >= 0 && <span className="text-[10px] opacity-70">• {m.days}h</span>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* PERSONAL RECORDS */}
+              {getPersonalRecords().length > 0 && (
+                <div className="bg-[#121212] rounded-xl p-5 border border-zinc-800/10">
+                  <h3 className="text-xs uppercase tracking-widest text-[#c4c9ac] font-bold mb-3 flex items-center gap-1.5">
+                    <Award className="w-3.5 h-3.5 text-[#c3f400]" /> Personal Records
+                  </h3>
+                  <div className="space-y-2">
+                    {getPersonalRecords().map(([name, pr], i) => (
+                      <div key={name} className="flex items-center justify-between py-1.5 border-b border-zinc-800/50 last:border-0">
+                        <span className="text-sm text-white font-medium truncate flex-1">{i === 0 && '🏆 '}{name}</span>
+                        <span className="text-sm font-bold text-[#c3f400] ml-2">{pr.weight} kg</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* DYNAMIC PLAN / START WORKOUT HERO AREA */}
               {!isActivelyTraining ? (
                 <div className="bg-[#201f1f] rounded-2xl p-6 border border-[#444933] shadow-md relative overflow-hidden ai-glow">
                   <div className="absolute top-0 right-0 w-32 h-32 bg-[#c3f400]/10 rounded-full blur-2xl -translate-y-1/2 translate-x-1/2 pointer-events-none"></div>
 
-                  <div className="flex justify-between items-start mb-4">
-                    <div className="space-y-1">
-                      <span className="text-xs font-mono uppercase tracking-widest text-[#c4c9ac] font-bold">Fokus Hari Ini</span>
-                      <h3 className="font-display text-2xl font-black text-white">{todayPlan?.focus || "Custom Plan"}</h3>
+                  {todayPlan ? (
+                    <>
+                      <div className="flex justify-between items-start mb-4">
+                        <div className="space-y-1">
+                          <span className="text-xs font-mono uppercase tracking-widest text-[#c4c9ac] font-bold">Fokus Hari Ini</span>
+                          <h3 className="font-display text-2xl font-black text-white">{todayPlan.focus}</h3>
+                        </div>
+                        <span className="bg-[#c3f400]/15 text-[#c3f400] border border-[#c3f400]/30 text-[10px] font-bold px-2.5 py-1 rounded-full flex items-center gap-1">
+                          <Zap className="w-3.5 h-3.5 fill-[#c3f400]" />
+                          Ready
+                        </span>
+                      </div>
+
+                      <div className="space-y-3 border-t border-zinc-800 pt-4 mb-6">
+                        <p className="font-sans text-sm text-[#c4c9ac] flex items-center gap-2">
+                          <MapPin className="w-4 h-4 text-[#a6e6ff]" />
+                          Lokasi: <strong>{workoutSessionLocation}</strong>
+                        </p>
+                        <p className="font-sans text-sm text-[#c4c9ac] flex items-center gap-2">
+                          <Clock className="w-4 h-4 text-[#a6e6ff]" />
+                          Estimasi: <strong>{todayPlan.exercises.length} gerakan • ~45 menit</strong>
+                        </p>
+                      </div>
+
+                      <div className="flex flex-col sm:flex-row gap-3">
+                        <button 
+                          onClick={triggerStartWorkout}
+                          className="flex-1 bg-[#c3f400] hover:bg-[#abd600] text-black font-display font-extrabold py-4 px-4 rounded-xl flex items-center justify-center gap-2 transition-all shadow-[0_4px_20px_rgba(195,244,0,0.3)] hover:scale-[1.01] active:scale-95"
+                        >
+                          <CheckCircle2 className="w-5 h-5 fill-black/10" />
+                          Mulai Workout
+                        </button>
+                        <button 
+                          onClick={() => {
+                            setLoggerLocation(workoutSessionLocation);
+                            setCurrentTab('logger');
+                          }}
+                          className="font-sans text-sm font-semibold text-[#c4c9ac] hover:text-white border border-zinc-700 bg-zinc-900/60 hover:bg-zinc-800/80 px-5 py-4 rounded-xl transition-all"
+                        >
+                          Ubah Plan
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="text-center py-4">
+                      <Sparkles className="w-8 h-8 text-[#c3f400] mx-auto mb-3" />
+                      <h3 className="font-display text-xl font-black text-white mb-2">Belum Ada Plan Hari Ini</h3>
+                      <p className="text-sm text-[#c4c9ac] mb-5">Generate plan AI atau buat manual di Logger</p>
+                      <div className="flex gap-3">
+                        <button 
+                          onClick={() => { setCurrentTab('logger'); setTimeout(() => generateWorkoutPlan(), 300); }}
+                          disabled={isGeneratingWorkoutPlan}
+                          className="flex-1 bg-[#c3f400] hover:bg-[#abd600] text-black font-display font-extrabold py-4 px-4 rounded-xl flex items-center justify-center gap-2 transition-all"
+                        >
+                          {isGeneratingWorkoutPlan ? <RefreshCw className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
+                          Generate Plan
+                        </button>
+                        <button 
+                          onClick={() => setCurrentTab('logger')}
+                          className="font-sans text-sm font-semibold text-[#c4c9ac] hover:text-white border border-zinc-700 bg-zinc-900/60 hover:bg-zinc-800/80 px-5 py-4 rounded-xl transition-all"
+                        >
+                          Manual
+                        </button>
+                      </div>
                     </div>
-                    <span className="bg-[#c3f400]/15 text-[#c3f400] border border-[#c3f400]/30 text-[10px] font-bold px-2.5 py-1 rounded-full flex items-center gap-1">
-                      <Zap className="w-3.5 h-3.5 fill-[#c3f400]" />
-                      Ready
-                    </span>
-                  </div>
-
-                  <div className="space-y-3 border-t border-zinc-800 pt-4 mb-6">
-                    <p className="font-sans text-sm text-[#c4c9ac] flex items-center gap-2">
-                      <MapPin className="w-4 h-4 text-[#a6e6ff]" />
-                      Tercapai melalui kustomisasi: <strong>{workoutSessionLocation}</strong>
-                    </p>
-                    <p className="font-sans text-sm text-[#c4c9ac] flex items-center gap-2">
-                      <Clock className="w-4 h-4 text-[#a6e6ff]" />
-                      Estimasi: <strong>4 gerakan • ~45 menit latihan intensif</strong>
-                    </p>
-                  </div>
-
-                  <div className="flex flex-col sm:flex-row gap-3">
-                    <button 
-                      onClick={triggerStartWorkout}
-                      className="flex-1 bg-[#c3f400] hover:bg-[#abd600] text-black font-display font-extrabold py-4 px-4 rounded-xl flex items-center justify-center gap-2 transition-all shadow-[0_4px_20px_rgba(195,244,0,0.3)] hover:scale-[1.01] active:scale-95"
-                    >
-                      <CheckCircle2 className="w-5 h-5 fill-black/10" />
-                      Mulai Workout
-                    </button>
-                    <button 
-                      onClick={() => {
-                        setLoggerLocation(workoutSessionLocation);
-                        setCurrentTab('logger');
-                      }}
-                      className="font-sans text-sm font-semibold text-[#c4c9ac] hover:text-white border border-zinc-700 bg-zinc-900/60 hover:bg-zinc-800/80 px-5 py-4 rounded-xl transition-all"
-                    >
-                      Ubah Setelan Plan
-                    </button>
-                  </div>
+                  )}
                 </div>
               ) : (
                 // ACTIVE GYM WORKOUT FLOW PANEL
@@ -1729,7 +1958,7 @@ export default function App() {
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {logs.map((log) => {
+                    {logs.slice(0, 4).map((log) => {
                       const logVol = calculateTotalVolume(log.exercises);
                       const isConfirmingDelete = deleteLogId === log.id;
 
@@ -1856,6 +2085,15 @@ export default function App() {
                         </div>
                       );
                     })}
+                    {logs.length > 4 && (
+                      <button
+                        onClick={() => setShowFullHistory(true)}
+                        className="w-full mt-1 py-3 rounded-xl border border-zinc-800 bg-zinc-900/50 hover:bg-zinc-800/50 text-sm font-bold text-[#c3f400] flex items-center justify-center gap-2 transition-colors"
+                      >
+                        Lihat Semua Riwayat ({logs.length} sesi)
+                        <ArrowRight className="w-4 h-4" />
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
@@ -1987,7 +2225,7 @@ export default function App() {
                 </h3>
 
                 {/* Draft Exercises List */}
-                <div className="space-y-3">
+                <div ref={exercisesListRef} className="space-y-3">
                   {isGeneratingWorkoutPlan && loggerExercises.length === 0 && (
                     <>
                       {[1,2,3,4].map(i => (
