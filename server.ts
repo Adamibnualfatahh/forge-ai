@@ -200,6 +200,20 @@ async function initDb() {
       )
     `);
 
+    // Audit log - write-only archive, never queried by API endpoints
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS workout_audit_log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        profile_id TEXT NOT NULL,
+        workout_id TEXT NOT NULL,
+        date TEXT NOT NULL,
+        focus TEXT,
+        exercises TEXT NOT NULL,
+        logged_at INTEGER NOT NULL,
+        deleted INTEGER DEFAULT 0
+      )
+    `);
+
     // Verify and seed default profiles
     const existing = await db.execute("SELECT * FROM profiles");
     if (existing.rows.length === 0) {
@@ -380,6 +394,12 @@ app.post("/api/profiles/:id/logs", async (req, res) => {
       args: [logId, profileId, date, focus, location, equipment, JSON.stringify(exercises), calories_burned || null, avg_bpm || null]
     });
 
+    // Audit log - fire and forget
+    db.execute({
+      sql: `INSERT INTO workout_audit_log (profile_id, workout_id, date, focus, exercises, logged_at) VALUES (?, ?, ?, ?, ?, ?)`,
+      args: [profileId, logId, date, focus, JSON.stringify(exercises), Date.now()]
+    }).catch(() => {});
+
     // Update profile stats - recalculate weekly streak
     // Streak = consecutive weeks (Mon-Sun) with at least 1 session
     const allLogs = await db.execute({
@@ -442,6 +462,12 @@ app.delete("/api/profiles/:profileId/logs/:logId", async (req, res) => {
       sql: "DELETE FROM workouts WHERE id = ? AND profile_id = ?",
       args: [logId, profileId]
     });
+
+    // Mark in audit log - fire and forget
+    db.execute({
+      sql: "UPDATE workout_audit_log SET deleted = 1 WHERE workout_id = ?",
+      args: [logId]
+    }).catch(() => {});
 
     // Recalculate session count and weekly streak after delete
     const remainingLogs = await db.execute({
