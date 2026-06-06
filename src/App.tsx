@@ -123,6 +123,11 @@ export default function App() {
   // Share card after workout
   const [showShare, setShowShare] = useState(false);
   const [newPRs, setNewPRs] = useState<{name: string; weight: number}[]>([]);
+  const [toast, setToast] = useState<{message: string; type: 'success' | 'error'} | null>(null);
+  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  };
   const [showFullHistory, setShowFullHistory] = useState(false);
   const [historyLogs, setHistoryLogs] = useState<WorkoutLog[]>([]);
   const [historyHasMore, setHistoryHasMore] = useState(false);
@@ -314,7 +319,7 @@ export default function App() {
     if (!activeProfile) return;
     try {
       const res = await fetch(`/api/profiles/${activeProfile.id}/chat`, { method: "DELETE" });
-      if (res.ok) setChatHistory([]);
+      if (res.ok) { setChatHistory([]); showToast("Chat dihapus"); }
     } catch (err) { console.error(err); }
   };
 
@@ -679,9 +684,11 @@ export default function App() {
       if (detectedPRs.length > 0) setNewPRs(detectedPRs);
       await fetchLogs(activeProfile.id);
       await fetchProfiles();
+      showToast("Workout tersimpan! 💪");
       setCurrentTab('dashboard');
     } catch (err) {
       setFormError("Koneksi gagal. Periksa jaringan.");
+      showToast("Gagal menyimpan workout", "error");
     } finally {
       setIsSavingLog(false);
     }
@@ -1055,7 +1062,7 @@ export default function App() {
               <div key={idx} className="space-y-2 text-left">
                 <div className="flex justify-between">
                   <h5 className="font-display font-extrabold text-white text-sm">{log.focus}</h5>
-                  {log.location && <span className="text-[10px] text-zinc-400 font-bold">@ {log.location}</span>}
+                  {log.location && <span className="text-[12px] text-zinc-400 font-bold">@ {log.location}</span>}
                 </div>
                 <div className="space-y-1 bg-zinc-900/50 p-2.5 rounded border border-zinc-800/40">
                   {log.exercises?.map((ex, exIdx) => (
@@ -1071,7 +1078,7 @@ export default function App() {
                 </div>
                 
                 {/* Total volume for selected day */}
-                <div className="text-[11px] text-[#a6e6ff] font-mono leading-relaxed bg-[#a6e6ff]/10 p-2 rounded">
+                <div className="text-[12px] text-[#a6e6ff] font-mono leading-relaxed bg-[#a6e6ff]/10 p-2 rounded">
                   📈 <strong>Total Angkatan:</strong> {calculateTotalVolume(log.exercises)} kg <br />
                   💡 {getAnimalAnalogy(calculateTotalVolume(log.exercises))}
                 </div>
@@ -1095,11 +1102,13 @@ export default function App() {
         await fetchLogs(activeProfile.id);
         await fetchProfiles();
         setDeleteLogId(null);
+        showToast("Sesi latihan dihapus");
       } else {
-        alert("Gagal menghapus riwayat latihan.");
+        showToast("Gagal menghapus riwayat", "error");
       }
     } catch (err) {
       console.error(err);
+      showToast("Koneksi gagal", "error");
     }
   };
 
@@ -1363,7 +1372,7 @@ export default function App() {
                   
                   <h2 className="title-profile font-display text-2xl font-bold text-white mt-4">{profile.name}</h2>
                   <p className="font-sans text-sm text-[#c4c9ac] mt-1">{profile.height}cm • {profile.weight}kg</p>
-                  <p className="font-sans text-[11px] font-semibold text-[#c3f400] bg-[#c3f400]/10 border border-[#c3f400]/30 px-2 py-0.5 rounded-full mt-2 uppercase tracking-wide">
+                  <p className="font-sans text-[12px] font-semibold text-[#c3f400] bg-[#c3f400]/10 border border-[#c3f400]/30 px-2 py-0.5 rounded-full mt-2 uppercase tracking-wide">
                     {profile.focus_area}
                   </p>
 
@@ -1542,16 +1551,16 @@ export default function App() {
                 <div key={log.id} className="bg-[#121212] p-4 rounded-xl border border-zinc-800">
                   <div className="flex justify-between items-start mb-2">
                     <div>
-                      <span className="font-mono text-[10px] text-zinc-400 block">{log.date} {log.location ? `@ ${log.location}` : ""}</span>
+                      <span className="font-mono text-[12px] text-zinc-400 block">{log.date} {log.location ? `@ ${log.location}` : ""}</span>
                       <h4 className="font-display text-sm font-bold text-white mt-1">{log.focus}</h4>
                     </div>
                     {calculateTotalVolume(log.exercises) > 0 && (
-                      <span className="text-[10px] font-bold text-[#c3f400] bg-[#c3f400]/10 px-2 py-1 rounded-full">{calculateTotalVolume(log.exercises)} kg</span>
+                      <span className="text-[12px] font-bold text-[#c3f400] bg-[#c3f400]/10 px-2 py-1 rounded-full">{calculateTotalVolume(log.exercises)} kg</span>
                     )}
                   </div>
                   <div className="flex flex-wrap gap-1.5">
                     {log.exercises?.map((ex, i) => (
-                      <span key={i} className="text-[10px] bg-zinc-900 border border-zinc-800/60 rounded px-2 py-0.5 text-zinc-300">
+                      <span key={i} className="text-[12px] bg-zinc-900 border border-zinc-800/60 rounded px-2 py-0.5 text-zinc-300">
                         {ex.name} {!ex.is_cardio && ex.weight_kg ? `${ex.weight_kg}kg` : ''}
                       </span>
                     ))}
@@ -1587,6 +1596,23 @@ export default function App() {
       </AnimatePresence>
 
       {/* GLOBAL HEADER BAR */}
+
+      {/* Toast Notification */}
+      <AnimatePresence>
+        {toast && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className={`fixed top-[env(safe-area-inset-top,16px)] left-1/2 -translate-x-1/2 z-[110] px-4 py-2.5 rounded-xl text-sm font-bold shadow-lg flex items-center gap-2 ${toast.type === 'success' ? 'bg-[#c3f400] text-black' : 'bg-red-500 text-white'}`}
+          >
+            {toast.type === 'success' ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
+            {toast.message}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* HEADER BAR */}
       <header className="ios-glass bg-[#121212]/80 dark-nav sticky top-0 z-40 border-b border-[#2c2c2c] dark-border pt-[env(safe-area-inset-top,16px)] pb-3 px-4 flex justify-between items-center">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-full overflow-hidden border border-zinc-800 hover:opacity-80 transition-opacity p-0.5" id="profile-trigger-avatar">
@@ -1599,17 +1625,19 @@ export default function App() {
           </div>
           <div className="flex flex-col">
             <span className="font-display font-bold text-white text-sm tracking-tight">{activeProfile.name}</span>
-            <span className="font-sans text-[10px] text-zinc-500">{activeProfile.focus_area || 'Training'}</span>
+            <span className="font-sans text-[12px] text-zinc-500">{activeProfile.focus_area || 'Training'}</span>
           </div>
         </div>
 
         {/* Swap Profile Settings trigger button */}
         <div className="flex gap-2">
           <button onClick={() => setDarkMode(!darkMode)}
+            aria-label={darkMode ? "Switch to light mode" : "Switch to dark mode"}
             className="p-2 rounded-lg border border-zinc-800 dark-border bg-zinc-900/60 dark-card text-zinc-300 hover:text-white transition-all">
             {darkMode ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
           </button>
           <button onClick={openEditProfile}
+            aria-label="Edit profil"
             className="p-2 rounded-lg border border-zinc-800 dark-border bg-zinc-900/60 dark-card text-zinc-300 hover:text-white transition-all">
             <Settings className="w-3.5 h-3.5" />
           </button>
@@ -1624,7 +1652,19 @@ export default function App() {
       </header>
 
       {/* VIEWPORT AREA RESPONSIVE CONTAINER */}
-      <main className="w-full max-w-[1200px] px-4 md:px-6 mx-auto mt-6 flex-1 flex flex-col pb-[calc(env(safe-area-inset-bottom)+100px)]">
+      <main 
+        className="w-full max-w-[1200px] px-4 md:px-6 mx-auto mt-6 flex-1 flex flex-col pb-[calc(env(safe-area-inset-bottom)+100px)]"
+        onTouchStart={(e) => { (e.currentTarget as any)._touchX = e.touches[0].clientX; }}
+        onTouchEnd={(e) => {
+          const startX = (e.currentTarget as any)._touchX;
+          if (!startX) return;
+          const diff = e.changedTouches[0].clientX - startX;
+          const tabs: typeof currentTab[] = ['dashboard', 'logger', 'progress', 'chat', 'scanner'];
+          const idx = tabs.indexOf(currentTab);
+          if (diff < -80 && idx < tabs.length - 1) setCurrentTab(tabs[idx + 1]);
+          if (diff > 80 && idx > 0) setCurrentTab(tabs[idx - 1]);
+        }}
+      >
         
         {/* INTERACTIVE TAB WINDOWS */}
         <AnimatePresence mode="wait">
@@ -1688,7 +1728,7 @@ export default function App() {
                           <span className="font-display text-3xl font-extrabold text-[#c3f400]">{currentVol.toLocaleString('id-ID')} kg</span>
                           <Dumbbell className="w-4.5 h-4.5 text-[#c3f400]" />
                         </div>
-                        <p className="font-sans text-[10px] text-[#c4c9ac] mt-1 leading-tight flex items-center gap-1">
+                        <p className="font-sans text-[12px] text-[#c4c9ac] mt-1 leading-tight flex items-center gap-1">
                           <span>{getAnimalAnalogy(currentVol)}</span>
                         </p>
                       </div>
@@ -1706,10 +1746,10 @@ export default function App() {
                   <h3 className="text-xs uppercase tracking-widest text-[#c4c9ac] font-bold mb-3">Recovery Status</h3>
                   <div className="flex flex-wrap gap-2">
                     {getRecoveryStatus().map(m => (
-                      <div key={m.group} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold ${m.status === 'recovering' ? 'bg-orange-500/10 text-orange-400 border border-orange-500/20' : m.status === 'ready' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-zinc-800/50 text-zinc-500 border border-zinc-700/30'}`}>
+                      <div key={m.group} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-bold ${m.status === 'recovering' ? 'bg-orange-500/10 text-orange-400 border border-orange-500/20' : m.status === 'ready' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-zinc-800/50 text-zinc-500 border border-zinc-700/30'}`}>
                         <span>{m.status === 'recovering' ? '🔥' : m.status === 'ready' ? '✅' : '💤'}</span>
                         <span className="capitalize">{m.group}</span>
-                        {m.days >= 0 && <span className="text-[10px] opacity-70">• {m.days}h</span>}
+                        {m.days >= 0 && <span className="text-[12px] opacity-70">• {m.days}h</span>}
                       </div>
                     ))}
                   </div>
@@ -1745,7 +1785,7 @@ export default function App() {
                           <span className="text-xs font-mono uppercase tracking-widest text-[#c4c9ac] font-bold">Fokus Hari Ini</span>
                           <h3 className="font-display text-2xl font-black text-white">{todayPlan.focus}</h3>
                         </div>
-                        <span className="bg-[#c3f400]/15 text-[#c3f400] border border-[#c3f400]/30 text-[10px] font-bold px-2.5 py-1 rounded-full flex items-center gap-1">
+                        <span className="bg-[#c3f400]/15 text-[#c3f400] border border-[#c3f400]/30 text-[12px] font-bold px-2.5 py-1 rounded-full flex items-center gap-1">
                           <Zap className="w-3.5 h-3.5 fill-[#c3f400]" />
                           Ready
                         </span>
@@ -1814,12 +1854,12 @@ export default function App() {
                 >
                   <div className="flex justify-between items-center mb-6 border-b border-zinc-800 pb-4">
                     <div>
-                      <span className="text-[10px] uppercase font-semibold tracking-wide text-[#c3f400]">Sedang Latihan</span>
+                      <span className="text-[12px] uppercase font-semibold tracking-wide text-[#c3f400]">Sedang Latihan</span>
                       <h3 className="font-display text-2xl font-black text-white">{todayPlan?.focus}</h3>
                     </div>
                     <div className="flex items-center gap-3">
                       <div className="text-right">
-                        <span className="text-[10px] text-zinc-500 block">Durasi</span>
+                        <span className="text-[12px] text-zinc-500 block">Durasi</span>
                         <span className="font-mono text-lg font-bold text-white">{Math.floor(workoutElapsed/60)}:{String(workoutElapsed%60).padStart(2,'0')}</span>
                       </div>
                       <button 
@@ -1850,7 +1890,7 @@ export default function App() {
                             <p className="font-sans text-xs text-[#c4c9ac] mt-1">
                               <strong>{ex.sets} Sets</strong> x <strong>{ex.reps} Reps</strong> 
                             </p>
-                            <p className="font-mono text-[11px] text-[#a6e6ff] mt-0.5">{ex.notes}</p>
+                            <p className="font-mono text-[12px] text-[#a6e6ff] mt-0.5">{ex.notes}</p>
                           </div>
                         </div>
                         
@@ -1896,7 +1936,7 @@ export default function App() {
                 <div className="flex items-center justify-between">
                   <h4 className="font-display font-bold text-white text-sm">Plan Hari Ini</h4>
                   <button onClick={generateWorkoutPlan} disabled={isGeneratingWorkoutPlan}
-                    className="text-[11px] text-[#c3f400] font-bold flex items-center gap-1 disabled:opacity-50">
+                    className="text-[12px] text-[#c3f400] font-bold flex items-center gap-1 disabled:opacity-50">
                     {isGeneratingWorkoutPlan ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />} {isGeneratingWorkoutPlan ? "..." : "Refresh"}
                   </button>
                 </div>
@@ -1909,7 +1949,7 @@ export default function App() {
                       </div>
                     ))}
                     {todayPlan.exercises.length > 4 && (
-                      <span className="text-[10px] text-zinc-500">+{todayPlan.exercises.length - 4} gerakan lagi</span>
+                      <span className="text-[12px] text-zinc-500">+{todayPlan.exercises.length - 4} gerakan lagi</span>
                     )}
                   </div>
                 )}
@@ -1922,18 +1962,18 @@ export default function App() {
                   <div className="grid grid-cols-3 gap-2">
                     <div className="bg-zinc-900 rounded-xl p-3 text-center">
                       <span className="text-lg font-bold text-white block">{latestRecomp.calories}</span>
-                      <span className="text-[10px] text-zinc-500">Kcal</span>
+                      <span className="text-[12px] text-zinc-500">Kcal</span>
                     </div>
                     <div className="bg-zinc-900 rounded-xl p-3 text-center">
                       <span className="text-lg font-bold text-[#a6e6ff] block">{latestRecomp.protein}g</span>
-                      <span className="text-[10px] text-zinc-500">Protein</span>
+                      <span className="text-[12px] text-zinc-500">Protein</span>
                     </div>
                     <div className="bg-zinc-900 rounded-xl p-3 text-center">
                       <span className="text-lg font-bold text-[#c3f400] block">{latestRecomp.focus_type === 'Caloric Deficit' ? 'Deficit' : latestRecomp.focus_type === 'Surplus' ? 'Surplus' : 'Maintain'}</span>
-                      <span className="text-[10px] text-zinc-500">Strategi</span>
+                      <span className="text-[12px] text-zinc-500">Strategi</span>
                     </div>
                   </div>
-                  <p className="text-[11px] text-zinc-500 leading-relaxed">
+                  <p className="text-[12px] text-zinc-500 leading-relaxed">
                     {latestRecomp.focus_type === 'Caloric Deficit' 
                       ? `Fokus defisit ~300-500 kcal. Prioritaskan protein ${latestRecomp.protein}g/hari untuk jaga massa otot.`
                       : latestRecomp.focus_type === 'Surplus'
@@ -1970,7 +2010,7 @@ export default function App() {
                                 <Activity className="w-5 h-5" />
                               </div>
                               <div>
-                                <span className="font-mono text-[10px] text-[#c4c9ac] font-bold block bg-zinc-900/40 py-0.5 px-2 rounded border border-zinc-800/20 inline-block">
+                                <span className="font-mono text-[12px] text-[#c4c9ac] font-bold block bg-zinc-900/40 py-0.5 px-2 rounded border border-zinc-800/20 inline-block">
                                   {log.date} {log.location ? `@ ${log.location}` : ""}
                                 </span>
                                 <h4 className="font-display text-md font-bold text-white mt-1.5">{log.focus}</h4>
@@ -1981,12 +2021,12 @@ export default function App() {
                                 {(log.calories_burned || log.avg_bpm) && (
                                   <div className="flex gap-2 mt-2">
                                     {log.calories_burned && (
-                                      <span className="inline-flex items-center gap-1 bg-red-500/10 text-red-400 text-[10px] px-2 py-0.5 rounded-full border border-red-500/20">
+                                      <span className="inline-flex items-center gap-1 bg-red-500/10 text-red-400 text-[12px] px-2 py-0.5 rounded-full border border-red-500/20">
                                         <Flame className="w-3 h-3" /> {log.calories_burned} kcal
                                       </span>
                                     )}
                                     {log.avg_bpm && (
-                                      <span className="inline-flex items-center gap-1 bg-rose-500/10 text-rose-400 text-[10px] px-2 py-0.5 rounded-full border border-rose-500/20">
+                                      <span className="inline-flex items-center gap-1 bg-rose-500/10 text-rose-400 text-[12px] px-2 py-0.5 rounded-full border border-rose-500/20">
                                         <Activity className="w-3 h-3" /> {log.avg_bpm} bpm
                                       </span>
                                     )}
@@ -2059,9 +2099,9 @@ export default function App() {
                           <div className="border-t border-zinc-850 pt-3 flex flex-col md:flex-row md:items-center justify-between gap-3">
                             <div className="flex flex-wrap gap-2">
                               {log.exercises?.map((ex, idx) => (
-                                <div key={idx} className="bg-zinc-900 border border-zinc-800/60 rounded px-2.5 py-1 text-[11px] font-sans flex flex-col gap-0.5">
+                                <div key={idx} className="bg-zinc-900 border border-zinc-800/60 rounded px-2.5 py-1 text-[12px] font-sans flex flex-col gap-0.5">
                                   <span className="font-semibold text-white">{ex.name}</span>
-                                  <span className="text-zinc-400 text-[10px]">
+                                  <span className="text-zinc-400 text-[12px]">
                                     {ex.is_cardio 
                                       ? `⏱️ ${ex.duration_minutes || 30}m Kardio` 
                                       : `${ex.sets}s x ${ex.reps} ${ex.weight_kg ? `@ ${ex.weight_kg}kg` : ""}`}
@@ -2073,10 +2113,10 @@ export default function App() {
                             {/* Total volume diangkat */}
                             {logVol > 0 && (
                               <div className="bg-[#c3f400]/5 border border-[#c3f400]/25 rounded-lg p-2 max-w-full md:max-w-xs text-right shrink-0">
-                                <p className="font-mono text-[10px] text-[#c3f400] font-black uppercase tracking-wider">
+                                <p className="font-mono text-[12px] text-[#c3f400] font-black uppercase tracking-wider">
                                   🏋️‍♂️ Total Angkatan Sesi: {logVol} kg
                                 </p>
-                                <p className="font-sans text-[10px] text-[#c4c9ac] mt-0.5 leading-tight">
+                                <p className="font-sans text-[12px] text-[#c4c9ac] mt-0.5 leading-tight">
                                   {getAnimalAnalogy(logVol)}
                                 </p>
                               </div>
@@ -2117,7 +2157,7 @@ export default function App() {
               <div className="bg-[#201f1f] rounded-2xl p-4 border border-[#444933] space-y-4">
                 <div className="space-y-3">
                   <div>
-                    <label className="block text-[11px] uppercase tracking-wide text-zinc-500 font-semibold mb-1">Tanggal</label>
+                    <label className="block text-[12px] uppercase tracking-wide text-zinc-500 font-semibold mb-1">Tanggal</label>
                     <input 
                       type="date"
                       value={loggerDate}
@@ -2126,7 +2166,7 @@ export default function App() {
                     />
                   </div>
                   <div>
-                    <label className="block text-[11px] uppercase tracking-wide text-zinc-500 font-semibold mb-1">Waktu (opsional)</label>
+                    <label className="block text-[12px] uppercase tracking-wide text-zinc-500 font-semibold mb-1">Waktu (opsional)</label>
                     <div className="flex gap-2 items-center">
                       <input type="time" value={loggerTimeStart} onChange={e => setLoggerTimeStart(e.target.value)}
                         className="flex-1 bg-[#131313] border border-zinc-700 rounded-lg h-10 px-3 text-sm text-white focus:outline-none focus:border-[#c3f400]" />
@@ -2138,7 +2178,7 @@ export default function App() {
                 </div>
 
                 <div>
-                  <label className="block text-[11px] uppercase tracking-wide text-zinc-500 font-semibold mb-1">Lokasi Gym</label>
+                  <label className="block text-[12px] uppercase tracking-wide text-zinc-500 font-semibold mb-1">Lokasi Gym</label>
                     <input 
                       type="text"
                       placeholder="e.g. Muscle Prime Gym"
@@ -2241,7 +2281,7 @@ export default function App() {
                         <div key={idx} className="bg-[#181818] border border-[#c3f400]/40 p-4 rounded-lg space-y-3 text-left">
                           <div className="flex justify-between items-center pb-2 border-b border-zinc-800">
                             <span className="text-xs font-mono text-[#c3f400] font-black">UBAH GERAKAN #{idx + 1}</span>
-                            <span className="text-[10px] text-zinc-500">Manual Logger Draft</span>
+                            <span className="text-[12px] text-zinc-500">Manual Logger Draft</span>
                           </div>
 
                           {/* Exercise Types radio */}
@@ -2269,7 +2309,7 @@ export default function App() {
                           {/* Inputs */}
                           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                             <div className="sm:col-span-1">
-                              <label className="block text-[10px] text-zinc-400 font-bold mb-1 uppercase">Nama Gerakan</label>
+                              <label className="block text-[12px] text-zinc-400 font-bold mb-1 uppercase">Nama Gerakan</label>
                               <input 
                                 type="text"
                                 value={inlineExName}
@@ -2280,7 +2320,7 @@ export default function App() {
 
                             {inlineExIsCardio ? (
                               <div>
-                                <label className="block text-[10px] text-zinc-400 font-bold mb-1 uppercase">Durasi (Menit)</label>
+                                <label className="block text-[12px] text-zinc-400 font-bold mb-1 uppercase">Durasi (Menit)</label>
                                 <input 
                                   type="number"
                                   value={inlineExDuration}
@@ -2291,7 +2331,7 @@ export default function App() {
                             ) : (
                               <div className="grid grid-cols-3 gap-1 col-span-1">
                                 <div>
-                                  <label className="block text-[10px] text-zinc-400 font-bold mb-1 uppercase text-center">Sets</label>
+                                  <label className="block text-[12px] text-zinc-400 font-bold mb-1 uppercase text-center">Sets</label>
                                   <input 
                                     type="number"
                                     value={inlineExSets}
@@ -2300,7 +2340,7 @@ export default function App() {
                                   />
                                 </div>
                                 <div>
-                                  <label className="block text-[10px] text-zinc-400 font-bold mb-1 uppercase text-center">Reps</label>
+                                  <label className="block text-[12px] text-zinc-400 font-bold mb-1 uppercase text-center">Reps</label>
                                   <input 
                                     type="text"
                                     value={inlineExReps}
@@ -2309,7 +2349,7 @@ export default function App() {
                                   />
                                 </div>
                                 <div>
-                                  <label className="block text-[10px] text-zinc-400 font-bold mb-1 uppercase text-center">Beban kg</label>
+                                  <label className="block text-[12px] text-zinc-400 font-bold mb-1 uppercase text-center">Beban kg</label>
                                   <input 
                                     type="number"
                                     value={inlineExWeight}
@@ -2321,7 +2361,7 @@ export default function App() {
                             )}
 
                             <div className="sm:col-span-1">
-                              <label className="block text-[10px] text-zinc-400 font-bold mb-1 uppercase">Catatan / Note</label>
+                              <label className="block text-[12px] text-zinc-400 font-bold mb-1 uppercase">Catatan / Note</label>
                               <input 
                                 type="text"
                                 value={inlineExNotes}
@@ -2334,13 +2374,13 @@ export default function App() {
                           <div className="flex justify-end gap-2 pt-1">
                             <button
                               onClick={() => setEditingLoggerExIndex(null)}
-                              className="bg-zinc-805 hover:bg-zinc-750 text-zinc-300 text-[10px] font-bold px-3 py-1.5 rounded transition-all"
+                              className="bg-zinc-805 hover:bg-zinc-750 text-zinc-300 text-[12px] font-bold px-3 py-1.5 rounded transition-all"
                             >
                               Batal
                             </button>
                             <button
                               onClick={() => saveInlineEditLoggerEx(idx)}
-                              className="bg-[#c3f400] hover:bg-[#abd600] text-black text-[10px] font-extrabold px-4 py-1.5 rounded transition-all"
+                              className="bg-[#c3f400] hover:bg-[#abd600] text-black text-[12px] font-extrabold px-4 py-1.5 rounded transition-all"
                             >
                               Simpan
                             </button>
@@ -2357,7 +2397,7 @@ export default function App() {
                             <h4 className="font-display font-bold text-white text-md">{item.name}</h4>
                             <p className="font-sans text-xs text-[#c4c9ac] mt-1 flex flex-wrap items-center gap-2">
                               {item.is_cardio ? (
-                                <span className="bg-blue-900/40 text-blue-300 border border-blue-800/60 px-1.5 py-0.5 rounded text-[10px] font-bold">
+                                <span className="bg-blue-900/40 text-blue-300 border border-blue-800/60 px-1.5 py-0.5 rounded text-[12px] font-bold">
                                   Kardio {item.duration_minutes || 30} Menit
                                 </span>
                               ) : (
@@ -2367,7 +2407,27 @@ export default function App() {
                                 </span>
                               )}
                             </p>
-                            {item.notes && <p className="font-mono text-[10px] text-[#a6e6ff] mt-0.5 italic">Note: {item.notes}</p>}
+                            {item.notes && <p className="font-mono text-[12px] text-[#a6e6ff] mt-0.5 italic">Note: {item.notes}</p>}
+                            <div className="flex gap-2 mt-1.5">
+                              <a
+                                href={`https://www.youtube.com/results?search_query=how+to+${encodeURIComponent(item.name)}+form+tutorial`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 text-[12px] font-bold text-red-400 hover:text-red-300 transition-colors"
+                              >
+                                <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor"><path d="M23.5 6.2a3 3 0 0 0-2.1-2.1C19.5 3.5 12 3.5 12 3.5s-7.5 0-9.4.6A3 3 0 0 0 .5 6.2 31.9 31.9 0 0 0 0 12a31.9 31.9 0 0 0 .5 5.8 3 3 0 0 0 2.1 2.1c1.9.6 9.4.6 9.4.6s7.5 0 9.4-.6a3 3 0 0 0 2.1-2.1c.4-1.9.5-5.8.5-5.8s0-3.9-.5-5.8ZM9.5 15.6V8.4l6.3 3.6-6.3 3.6Z"/></svg>
+                                YouTube
+                              </a>
+                              <a
+                                href={`https://www.google.com/search?q=${encodeURIComponent(item.name + ' exercise form guide')}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 text-[12px] font-bold text-blue-400 hover:text-blue-300 transition-colors"
+                              >
+                                <Compass className="w-3 h-3" />
+                                Google
+                              </a>
+                            </div>
                           </div>
                         </div>
                         
@@ -2420,7 +2480,7 @@ export default function App() {
                 <div className="border-t border-zinc-800 pt-4 space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-[#c4c9ac] uppercase">Tambah Gerakan</span>
-                    <button onClick={() => setShowExSearch(true)} className="text-[11px] text-[#c3f400] font-bold flex items-center gap-1">
+                    <button onClick={() => setShowExSearch(true)} className="text-[12px] text-[#c3f400] font-bold flex items-center gap-1">
                       <Plus className="w-3.5 h-3.5" /> Cari Exercise
                     </button>
                   </div>
@@ -2464,7 +2524,7 @@ export default function App() {
                               <MuscleIcon name={ex.name} size={32} />
                               <div>
                                 <span className="text-xs font-medium text-white block">{ex.name}</span>
-                                <span className="text-[10px] text-zinc-500">{ex.muscle}</span>
+                                <span className="text-[12px] text-zinc-500">{ex.muscle}</span>
                               </div>
                             </button>
                           ))}
@@ -2569,7 +2629,7 @@ export default function App() {
                     <Sparkles className="w-6 h-6 fill-[#c3f400]" />
                   </div>
                   <div>
-                    <span className="font-sans text-[10px] uppercase font-semibold tracking-wide text-zinc-500">Analisa Tubuh</span>
+                    <span className="font-sans text-[12px] uppercase font-semibold tracking-wide text-zinc-500">Analisa Tubuh</span>
                     <h3 className="font-display text-lg font-bold text-white mt-0.5">Rekomposisi Tubuh</h3>
                     
                     <p className="font-sans text-sm text-[#c4c9ac] leading-relaxed mt-2">
@@ -2581,15 +2641,15 @@ export default function App() {
                 {latestRecomp && (
                   <div className="grid grid-cols-3 gap-2 border-t border-zinc-800/80 pt-4 mt-2">
                     <div className="bg-[#131313] p-3 rounded-xl border border-zinc-800 text-center overflow-hidden">
-                      <span className="text-[10px] text-[#c4c9ac] font-bold uppercase block tracking-wider">Strategi</span>
-                      <span className="text-[11px] font-bold font-display text-[#c3f400] block mt-1 truncate">{latestRecomp.focus_type}</span>
+                      <span className="text-[12px] text-[#c4c9ac] font-bold uppercase block tracking-wider">Strategi</span>
+                      <span className="text-[12px] font-bold font-display text-[#c3f400] block mt-1 truncate">{latestRecomp.focus_type}</span>
                     </div>
                     <div className="bg-[#131313] p-3 rounded-xl border border-zinc-800 text-center">
-                      <span className="text-[10px] text-[#c4c9ac] font-bold uppercase block tracking-wider">Target Kalori</span>
+                      <span className="text-[12px] text-[#c4c9ac] font-bold uppercase block tracking-wider">Target Kalori</span>
                       <span className="text-sm font-extrabold font-display text-white block mt-1">{latestRecomp.calories} Kcal</span>
                     </div>
                     <div className="bg-[#131313] p-3 rounded-xl border border-zinc-800 text-center">
-                      <span className="text-[10px] text-[#c4c9ac] font-bold uppercase block tracking-wider">Target Protein</span>
+                      <span className="text-[12px] text-[#c4c9ac] font-bold uppercase block tracking-wider">Target Protein</span>
                       <span className="text-sm font-extrabold font-display text-[#a6e6ff] block mt-1">{latestRecomp.protein} gram</span>
                     </div>
                   </div>
@@ -2608,7 +2668,7 @@ export default function App() {
                   <form onSubmit={handleLogMetrics} className="space-y-4">
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-[10px] font-bold uppercase tracking-widest text-[#c4c9ac] mb-1">Tinggi Badan (cm)</label>
+                        <label className="block text-[12px] font-bold uppercase tracking-widest text-[#c4c9ac] mb-1">Tinggi Badan (cm)</label>
                         <input 
                           type="number"
                           placeholder="e.g. 182"
@@ -2618,7 +2678,7 @@ export default function App() {
                         />
                       </div>
                       <div>
-                        <label className="block text-[10px] font-bold uppercase tracking-widest text-[#c4c9ac] mb-1">Berat Badan (kg)</label>
+                        <label className="block text-[12px] font-bold uppercase tracking-widest text-[#c4c9ac] mb-1">Berat Badan (kg)</label>
                         <input 
                           type="number" 
                           step="0.1"
@@ -2678,7 +2738,7 @@ export default function App() {
                     <TrendingUp className="w-5 h-5 text-[#a6e6ff]" />
                     Weight Trajectory
                   </h3>
-                  <span className="text-[10px] uppercase font-bold tracking-wider text-zinc-500 font-mono">Last 3 Readings</span>
+                  <span className="text-[12px] uppercase font-bold tracking-wider text-zinc-500 font-mono">Last 3 Readings</span>
                 </div>
 
                 {/* Grid Visual Histogram */}
@@ -2688,20 +2748,20 @@ export default function App() {
                   
                   {/* Standard Static readings representing target timeline progress bars */}
                   <div className="w-full mx-2 bg-zinc-800 rounded-t-md h-[78%] relative group transition-colors hover:bg-zinc-700">
-                    <div className="absolute -top-7 left-1/2 -translate-x-1/2 font-display text-[10px] text-zinc-400 font-bold">85kg</div>
-                    <span className="absolute -bottom-7 left-1/2 -translate-x-1/2 font-sans text-[10px] text-zinc-500 font-bold uppercase tracking-wider block">Wk 1</span>
+                    <div className="absolute -top-7 left-1/2 -translate-x-1/2 font-display text-[12px] text-zinc-400 font-bold">85kg</div>
+                    <span className="absolute -bottom-7 left-1/2 -translate-x-1/2 font-sans text-[12px] text-zinc-500 font-bold uppercase tracking-wider block">Wk 1</span>
                   </div>
 
                   <div className="w-full mx-2 bg-zinc-800 rounded-t-md h-[81%] relative group transition-colors hover:bg-zinc-700">
-                    <div className="absolute -top-7 left-1/2 -translate-x-1/2 font-display text-[10px] text-zinc-400 font-bold">85.4kg</div>
-                    <span className="absolute -bottom-7 left-1/2 -translate-x-1/2 font-sans text-[10px] text-zinc-500 font-bold uppercase tracking-wider block">Wk 2</span>
+                    <div className="absolute -top-7 left-1/2 -translate-x-1/2 font-display text-[12px] text-zinc-400 font-bold">85.4kg</div>
+                    <span className="absolute -bottom-7 left-1/2 -translate-x-1/2 font-sans text-[12px] text-zinc-500 font-bold uppercase tracking-wider block">Wk 2</span>
                   </div>
 
                   {/* Active Weight Reading Glow */}
                   <div className="w-full mx-2 bg-[#c3f400]/20 rounded-t-md h-[84%] border-t-2 border-[#c3f400] relative group">
                     <div className="absolute w-full h-4 top-0 bg-[#c3f400]/20 blur-sm"></div>
-                    <div className="absolute -top-7 left-1/2 -translate-x-1/2 font-display text-[11px] text-[#c3f400] font-extrabold">{activeProfile?.weight || "72.0"}kg</div>
-                    <span className="absolute -bottom-7 left-1/2 -translate-x-1/2 font-sans text-[10px] text-[#c3f400] font-extrabold uppercase tracking-wider block">Real</span>
+                    <div className="absolute -top-7 left-1/2 -translate-x-1/2 font-display text-[12px] text-[#c3f400] font-extrabold">{activeProfile?.weight || "72.0"}kg</div>
+                    <span className="absolute -bottom-7 left-1/2 -translate-x-1/2 font-sans text-[12px] text-[#c3f400] font-extrabold uppercase tracking-wider block">Real</span>
                   </div>
                 </div>
 
@@ -2740,14 +2800,14 @@ export default function App() {
                   <div className="w-3.5 h-3.5 rounded-full bg-[#c3f400] animate-pulse"></div>
                   <span className="font-display font-bold text-sm text-white tracking-tight">Chat Trainer</span>
                 </div>
-                <button onClick={clearChat} className="text-[10px] font-medium text-zinc-500 hover:text-red-400 transition-colors flex items-center gap-1">
+                <button onClick={clearChat} aria-label="Hapus semua chat" className="text-[12px] font-medium text-zinc-500 hover:text-red-400 transition-colors flex items-center gap-1">
                   <Trash2 className="w-3 h-3" /> Clear
                 </button>
               </div>
 
               {/* Chat Thread Panel */}
               <div className="flex-1 bg-[#201f1f]/50 border border-zinc-850 overflow-y-auto p-4 space-y-4 no-scrollbar flex flex-col">
-                <div className="text-center text-[10px] text-zinc-600 my-2">Hari ini</div>
+                <div className="text-center text-[12px] text-zinc-600 my-2">Hari ini</div>
 
                 {/* Default Greeting Message block */}
                 <div className="flex justify-start w-full gap-2.5">
@@ -2806,7 +2866,7 @@ export default function App() {
                 {/* Suggestions triggers chips */}
                 {chatHistory.length === 0 && (
                   <div className="space-y-1.5 pt-1">
-                    <span className="text-[10px] text-zinc-500 uppercase tracking-wider font-bold block">Topik Populer:</span>
+                    <span className="text-[12px] text-zinc-500 uppercase tracking-wider font-bold block">Topik Populer:</span>
                     <div className="flex flex-wrap gap-2">
                       {chatPrompts.map((prompt) => (
                         <button
@@ -2962,7 +3022,7 @@ export default function App() {
                   ) : scannerResult ? (
                     <div className="space-y-4 animate-fade-in flex-1 text-left">
                       <div>
-                        <span className="font-mono text-[9px] font-bold text-[#c3f400] bg-[#c3f400]/10 border border-[#c3f400]/25 rounded px-1.5 py-0.5 uppercase tracking-wider">Identifikasi Sukses</span>
+                        <span className="font-mono text-[12px] font-bold text-[#c3f400] bg-[#c3f400]/10 border border-[#c3f400]/25 rounded px-1.5 py-0.5 uppercase tracking-wider">Identifikasi Sukses</span>
                         <h3 className="font-display text-2xl font-black text-white mt-1.5 border-b border-zinc-800 pb-2 flex items-center gap-2">
                           <CheckCircle2 className="w-6 h-6 text-[#c3f400]" />
                           {scannerResult.name}
@@ -2971,18 +3031,18 @@ export default function App() {
 
                       <div className="space-y-3 text-sm">
                         <div className="space-y-1">
-                          <h4 className="text-[10px] uppercase tracking-wider text-zinc-500 font-bold block">Deskripsi Alat</h4>
+                          <h4 className="text-[12px] uppercase tracking-wider text-zinc-500 font-bold block">Deskripsi Alat</h4>
                           <p className="text-zinc-300 leading-relaxed font-sans text-xs">{scannerResult.description}</p>
                         </div>
 
                         <div className="space-y-1">
-                          <h4 className="text-[10px] uppercase tracking-wider text-[#a6e6ff] font-bold block">Otot Target Utama</h4>
+                          <h4 className="text-[12px] uppercase tracking-wider text-[#a6e6ff] font-bold block">Otot Target Utama</h4>
                           <p className="text-zinc-300 leading-relaxed font-sans text-xs font-semibold italic">{scannerResult.target_muscles}</p>
                         </div>
 
                         <div className="space-y-1.5">
-                          <h4 className="text-[10px] uppercase tracking-wider text-[#c3f400] font-bold block">Cara Penggunaan Yang Benar</h4>
-                          <div className="bg-zinc-900 border border-zinc-850 rounded-xl p-3.5 space-y-1.5 text-[11px] text-zinc-400 leading-relaxed max-h-[140px] overflow-y-auto font-sans">
+                          <h4 className="text-[12px] uppercase tracking-wider text-[#c3f400] font-bold block">Cara Penggunaan Yang Benar</h4>
+                          <div className="bg-zinc-900 border border-zinc-850 rounded-xl p-3.5 space-y-1.5 text-[12px] text-zinc-400 leading-relaxed max-h-[140px] overflow-y-auto font-sans">
                             {scannerResult.proper_form.split('\n').map((para, i) => (
                               <p key={i}>{para}</p>
                             ))}
@@ -3029,12 +3089,12 @@ export default function App() {
               <div className="bg-[#121212] rounded-2xl p-5 border border-zinc-800 space-y-3">
                 <div className="flex items-center justify-between">
                   <h4 className="font-display font-bold text-white text-sm">Alat di Gym Saya</h4>
-                  <span className="text-[10px] text-zinc-500">{gymEquipmentList.length} alat</span>
+                  <span className="text-[12px] text-zinc-500">{gymEquipmentList.length} alat</span>
                 </div>
                 {gymEquipmentList.length > 0 && (
                   <div className="flex flex-wrap gap-2">
                     {gymEquipmentList.map(eq => (
-                      <span key={eq} className="inline-flex items-center gap-1 bg-zinc-900 border border-zinc-800 rounded-lg px-2.5 py-1.5 text-[11px] text-zinc-300">
+                      <span key={eq} className="inline-flex items-center gap-1 bg-zinc-900 border border-zinc-800 rounded-lg px-2.5 py-1.5 text-[12px] text-zinc-300">
                         {eq}
                         <button onClick={() => removeGymEquipment(eq)} className="text-zinc-600 hover:text-red-400 ml-0.5">×</button>
                       </span>
@@ -3062,7 +3122,7 @@ export default function App() {
                     className="bg-[#c3f400] text-black font-bold px-4 rounded-xl text-xs"
                   >+</button>
                 </div>
-                <p className="text-[10px] text-zinc-600">List ini digunakan saat generate plan latihan</p>
+                <p className="text-[12px] text-zinc-600">List ini digunakan saat generate plan latihan</p>
               </div>
             </motion.div>
           )}
@@ -3098,6 +3158,7 @@ export default function App() {
         {/* Tab 1: Dashboard */}
         <button 
           onClick={() => setCurrentTab('dashboard')}
+          aria-label="Dashboard"
           className={`flex flex-col items-center justify-center py-1.5 px-1 sm:px-3 rounded-xl transition-all scale-down active:scale-90 flex-1 sm:flex-none ${
             currentTab === 'dashboard' 
               ? "bg-[#c3f400] text-black shadow-[0_2px_10px_rgba(195,244,0,0.25)] font-bold" 
@@ -3105,12 +3166,13 @@ export default function App() {
           }`}
         >
           <Activity className="w-5 sm:w-5.5 h-5 sm:h-5.5" />
-          <span className="text-[9px] sm:text-[10px] uppercase font-bold tracking-wider mt-1 block">Home</span>
+          <span className="text-[12px] sm:text-[12px] uppercase font-bold tracking-wider mt-1 block">Home</span>
         </button>
 
         {/* Tab 2: Logger */}
         <button 
           onClick={() => setCurrentTab('logger')}
+          aria-label="Workout Logger"
           className={`flex flex-col items-center justify-center py-1.5 px-1 sm:px-3 rounded-xl transition-all scale-down active:scale-90 flex-1 sm:flex-none ${
             currentTab === 'logger' 
               ? "bg-[#c3f400] text-black shadow-[0_2px_10px_rgba(195,244,0,0.25)] font-bold" 
@@ -3118,12 +3180,13 @@ export default function App() {
           }`}
         >
           <Dumbbell className="w-5 sm:w-5.5 h-5 sm:h-5.5" />
-          <span className="text-[9px] sm:text-[10px] uppercase font-bold tracking-wider mt-1 block">Logger</span>
+          <span className="text-[12px] sm:text-[12px] uppercase font-bold tracking-wider mt-1 block">Logger</span>
         </button>
 
         {/* Tab 3: Progress */}
         <button 
           onClick={() => setCurrentTab('progress')}
+          aria-label="Progress & Recomposition"
           className={`flex flex-col items-center justify-center py-1.5 px-1 sm:px-3 rounded-xl transition-all scale-down active:scale-90 flex-1 sm:flex-none ${
             currentTab === 'progress' 
               ? "bg-[#c3f400] text-black shadow-[0_2px_10px_rgba(195,244,0,0.25)] font-bold" 
@@ -3131,12 +3194,13 @@ export default function App() {
           }`}
         >
           <Scale className="w-5 sm:w-5.5 h-5 sm:h-5.5" />
-          <span className="text-[9px] sm:text-[10px] uppercase font-bold tracking-wider mt-1 block">Recomp</span>
+          <span className="text-[12px] sm:text-[12px] uppercase font-bold tracking-wider mt-1 block">Recomp</span>
         </button>
 
         {/* Tab 4: AI Chat */}
         <button 
           onClick={() => setCurrentTab('chat')}
+          aria-label="AI Chat Trainer"
           className={`flex flex-col items-center justify-center py-1.5 px-1 sm:px-3 rounded-xl transition-all scale-down active:scale-90 flex-1 sm:flex-none ${
             currentTab === 'chat' 
               ? "bg-[#c3f400] text-black shadow-[0_2px_10px_rgba(195,244,0,0.25)] font-bold" 
@@ -3144,12 +3208,13 @@ export default function App() {
           }`}
         >
           <MessageSquare className="w-5 sm:w-5.5 h-5 sm:h-5.5" />
-          <span className="text-[9px] sm:text-[10px] uppercase font-bold tracking-wider mt-1 block">Chat AI</span>
+          <span className="text-[12px] sm:text-[12px] uppercase font-bold tracking-wider mt-1 block">Chat AI</span>
         </button>
 
         {/* Tab 5: Scanner */}
         <button 
           onClick={() => setCurrentTab('scanner')}
+          aria-label="Scan Gym Equipment"
           className={`flex flex-col items-center justify-center py-1.5 px-1 sm:px-3 rounded-xl transition-all scale-down active:scale-90 flex-1 sm:flex-none ${
             currentTab === 'scanner' 
               ? "bg-[#c3f400] text-black shadow-[0_2px_10px_rgba(195,244,0,0.25)] font-bold" 
@@ -3157,7 +3222,7 @@ export default function App() {
           }`}
         >
           <Camera className="w-5 sm:w-5.5 h-5 sm:h-5.5" />
-          <span className="text-[9px] sm:text-[10px] uppercase font-bold tracking-wider mt-1 block">Scan</span>
+          <span className="text-[12px] sm:text-[12px] uppercase font-bold tracking-wider mt-1 block">Scan</span>
         </button>
       </nav>
 
@@ -3196,7 +3261,7 @@ export default function App() {
                     <MuscleIcon name={ex.name} size={40} />
                     <div className="flex-1">
                       <span className="text-sm font-semibold text-white block">{ex.name}</span>
-                      <span className="text-[11px] text-zinc-500">{ex.muscle}</span>
+                      <span className="text-[12px] text-zinc-500">{ex.muscle}</span>
                     </div>
                     <Plus className="w-4 h-4 text-zinc-600" />
                   </button>
@@ -3278,7 +3343,7 @@ export default function App() {
               {/* Sticky header */}
               <div className="flex justify-between items-center border-b border-zinc-800 p-4 shrink-0">
                 <div>
-                  <span className="text-[10px] text-zinc-500 uppercase font-semibold">Ubah Sesi</span>
+                  <span className="text-[12px] text-zinc-500 uppercase font-semibold">Ubah Sesi</span>
                   <h3 className="font-display text-lg font-bold text-white">{editFocus}</h3>
                 </div>
                 <button 
@@ -3294,7 +3359,7 @@ export default function App() {
               <div className="space-y-4">
                 <div className="space-y-3">
                   <div>
-                    <label className="block text-[11px] uppercase tracking-wide text-zinc-500 font-semibold mb-1">Tanggal</label>
+                    <label className="block text-[12px] uppercase tracking-wide text-zinc-500 font-semibold mb-1">Tanggal</label>
                     <input 
                       type="date"
                       value={editDate}
@@ -3304,7 +3369,7 @@ export default function App() {
                   </div>
 
                   <div>
-                    <label className="block text-[11px] uppercase tracking-wide text-zinc-500 font-semibold mb-1">Waktu</label>
+                    <label className="block text-[12px] uppercase tracking-wide text-zinc-500 font-semibold mb-1">Waktu</label>
                     <div className="flex gap-1.5 items-center">
                       <input type="time" value={editTimeStart} onChange={e => setEditTimeStart(e.target.value)}
                         className="flex-1 bg-[#1c1c1c] border border-zinc-700 rounded-lg h-10 px-2 text-xs text-white" />
@@ -3317,7 +3382,7 @@ export default function App() {
 
                   {/* Location */}
                   <div>
-                    <label className="block text-[11px] uppercase tracking-wide text-zinc-500 font-semibold mb-1">Lokasi</label>
+                    <label className="block text-[12px] uppercase tracking-wide text-zinc-500 font-semibold mb-1">Lokasi</label>
                     <input 
                       type="text"
                       placeholder="e.g. Muscle Prime Gym"
@@ -3352,11 +3417,11 @@ export default function App() {
                           return (
                             <div key={idx} className="bg-zinc-950 p-3 rounded border border-[#c3f400]/40 space-y-3 mt-1 text-left">
                               <div className="flex justify-between items-center pb-1 border-b border-zinc-900">
-                                <span className="text-[10px] font-mono text-[#c3f400] font-black">EDIT GERAKAN #{idx + 1}</span>
+                                <span className="text-[12px] font-mono text-[#c3f400] font-black">EDIT GERAKAN #{idx + 1}</span>
                               </div>
 
                               {/* Cardio / Strength Toggle */}
-                              <div className="flex gap-3 text-[10px] font-bold text-[#c4c9ac]">
+                              <div className="flex gap-3 text-[12px] font-bold text-[#c4c9ac]">
                                 <label className="flex items-center gap-1 cursor-pointer select-none">
                                   <input 
                                     type="radio" 
@@ -3380,7 +3445,7 @@ export default function App() {
                               {/* Form */}
                               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                                 <div className="sm:col-span-1">
-                                  <label className="block text-[9px] text-zinc-500 font-bold mb-0.5">NAMA GERAKAN</label>
+                                  <label className="block text-[12px] text-zinc-500 font-bold mb-0.5">NAMA GERAKAN</label>
                                   <input 
                                     type="text"
                                     value={inlineExName}
@@ -3391,7 +3456,7 @@ export default function App() {
 
                                 {inlineExIsCardio ? (
                                   <div>
-                                    <label className="block text-[9px] text-zinc-500 font-bold mb-0.5">DURASI (MENIT)</label>
+                                    <label className="block text-[12px] text-zinc-500 font-bold mb-0.5">DURASI (MENIT)</label>
                                     <input 
                                       type="number"
                                       value={inlineExDuration}
@@ -3402,7 +3467,7 @@ export default function App() {
                                 ) : (
                                   <div className="grid grid-cols-3 gap-1 col-span-1">
                                     <div>
-                                      <label className="block text-[9px] text-zinc-500 font-bold mb-0.5 text-center">SETS</label>
+                                      <label className="block text-[12px] text-zinc-500 font-bold mb-0.5 text-center">SETS</label>
                                       <input 
                                         type="number"
                                         value={inlineExSets}
@@ -3411,7 +3476,7 @@ export default function App() {
                                       />
                                     </div>
                                     <div>
-                                      <label className="block text-[9px] text-zinc-500 font-bold mb-0.5 text-center">REPS</label>
+                                      <label className="block text-[12px] text-zinc-500 font-bold mb-0.5 text-center">REPS</label>
                                       <input 
                                         type="text"
                                         value={inlineExReps}
@@ -3420,7 +3485,7 @@ export default function App() {
                                       />
                                     </div>
                                     <div>
-                                      <label className="block text-[9px] text-zinc-500 font-bold mb-0.5 text-center">BEBAN KG</label>
+                                      <label className="block text-[12px] text-zinc-500 font-bold mb-0.5 text-center">BEBAN KG</label>
                                       <input 
                                         type="number"
                                         value={inlineExWeight}
@@ -3432,7 +3497,7 @@ export default function App() {
                                 )}
 
                                 <div className="sm:col-span-1">
-                                  <label className="block text-[9px] text-zinc-500 font-bold mb-0.5">CATATAN</label>
+                                  <label className="block text-[12px] text-zinc-500 font-bold mb-0.5">CATATAN</label>
                                   <input 
                                     type="text"
                                     value={inlineExNotes}
@@ -3445,13 +3510,13 @@ export default function App() {
                               <div className="flex justify-end gap-1.5 pt-1">
                                 <button
                                   onClick={() => setEditingEditExIndex(null)}
-                                  className="bg-zinc-900 border border-zinc-805 hover:bg-zinc-800 text-zinc-400 text-[10px] font-bold px-2.5 py-1 rounded transition-colors"
+                                  className="bg-zinc-900 border border-zinc-805 hover:bg-zinc-800 text-zinc-400 text-[12px] font-bold px-2.5 py-1 rounded transition-colors"
                                 >
                                   Batal
                                 </button>
                                 <button
                                   onClick={() => saveInlineEditEditEx(idx)}
-                                  className="bg-[#c3f400] hover:bg-[#abd600] text-black text-[10px] font-extrabold px-3 py-1 rounded transition-all"
+                                  className="bg-[#c3f400] hover:bg-[#abd600] text-black text-[12px] font-extrabold px-3 py-1 rounded transition-all"
                                 >
                                   Simpan
                                 </button>
@@ -3469,7 +3534,7 @@ export default function App() {
                                   ? `⏱️ Kardio ${et.duration_minutes || 30}m`
                                   : `${et.sets}s x ${et.reps} ${et.weight_kg ? `@ ${et.weight_kg}kg` : ""}`}
                               </span>
-                              {et.notes && <p className="text-[10px] text-[#a6e6ff] italic mt-0.5">Note: {et.notes}</p>}
+                              {et.notes && <p className="text-[12px] text-[#a6e6ff] italic mt-0.5">Note: {et.notes}</p>}
                             </div>
 
                             {/* Control button row */}
@@ -3521,10 +3586,10 @@ export default function App() {
 
                 {/* Inline Exercise Adder in Modal */}
                 <div className="bg-[#1c1c1c] p-3 rounded-lg border border-zinc-800 space-y-2">
-                  <span className="text-[10px] font-bold text-zinc-400 uppercase block">Tambah Gerakan Baru</span>
+                  <span className="text-[12px] font-bold text-zinc-400 uppercase block">Tambah Gerakan Baru</span>
                   
                   {/* Workout type selector */}
-                  <div className="flex gap-3 text-[11px] font-semibold text-[#c4c9ac]">
+                  <div className="flex gap-3 text-[12px] font-semibold text-[#c4c9ac]">
                     <label className="flex items-center gap-1.5 cursor-pointer select-none">
                       <input 
                         type="radio" 
@@ -3599,7 +3664,7 @@ export default function App() {
 
                   <button
                     onClick={handleAddEditCustomExercise}
-                    className="w-full bg-zinc-800 hover:bg-zinc-750 text-[#c3f400] text-[11px] font-bold py-1.5 rounded"
+                    className="w-full bg-zinc-800 hover:bg-zinc-750 text-[#c3f400] text-[12px] font-bold py-1.5 rounded"
                   >
                     + Tambahkan Gerakan ke Sesi
                   </button>
