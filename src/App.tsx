@@ -44,6 +44,9 @@ import {
   Share2
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
+import imageCompression from "browser-image-compression";
+import { jsPDF } from "jspdf";
 import { Profile, Exercise, WorkoutLog, RecompAnalysis, ChatMessage } from "./types";
 import RestTimer from "./RestTimer";
 import WeightChart from "./WeightChart";
@@ -133,6 +136,96 @@ export default function App() {
   const [historyHasMore, setHistoryHasMore] = useState(false);
   const [historyFilter, setHistoryFilter] = useState("");
   const [historyLoading, setHistoryLoading] = useState(false);
+
+  // Weekly schedule - auto from this week's logs + smart rotation
+  const DAYS = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'] as const;
+  const getAutoSchedule = () => {
+    const schedule: Record<string, string> = {};
+    const now = new Date();
+    const dayOfWeek = now.getDay();
+    const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+    const monday = new Date(now);
+    monday.setDate(now.getDate() + mondayOffset);
+    const trainedFocuses: string[] = [];
+    DAYS.forEach((day, i) => {
+      const d = new Date(monday);
+      d.setDate(monday.getDate() + i);
+      const dateStr = d.toISOString().split('T')[0];
+      const log = logs.find(l => l.date === dateStr);
+      if (log) { schedule[day] = log.focus.split(' ')[0]; trainedFocuses.push(log.focus.toLowerCase()); }
+    });
+    const allFocuses = ['Push', 'Pull', 'Legs', 'Upper', 'Lower', 'Full'];
+    let rotIdx = 0;
+    DAYS.forEach((day, i) => {
+      if (schedule[day]) return;
+      const d = new Date(monday); d.setDate(monday.getDate() + i);
+      if (d < now) { schedule[day] = '—'; return; }
+      if (i === 6) { schedule[day] = 'Rest'; return; }
+      let pick = 'Rest';
+      for (let a = 0; a < allFocuses.length; a++) {
+        const c = allFocuses[(rotIdx + a) % allFocuses.length];
+        if (!trainedFocuses.some(f => f.includes(c.toLowerCase()))) {
+          pick = c; rotIdx = (rotIdx + a + 1) % allFocuses.length; trainedFocuses.push(c.toLowerCase()); break;
+        }
+      }
+      schedule[day] = pick;
+    });
+    return schedule;
+  };
+
+  // Achievements
+  const getAchievements = () => [
+    { icon: '🎯', title: 'Sesi Pertama', unlocked: logs.length >= 1 },
+    { icon: '🔥', title: '5 Sesi', unlocked: logs.length >= 5 },
+    { icon: '💪', title: '10 Sesi', unlocked: logs.length >= 10 },
+    { icon: '🏆', title: '25 Sesi', unlocked: logs.length >= 25 },
+    { icon: '⚡', title: '50 Sesi', unlocked: logs.length >= 50 },
+    { icon: '🦁', title: '1000kg Volume', unlocked: logs.some(l => calculateTotalVolume(l.exercises) >= 1000) },
+    { icon: '📅', title: '2 Minggu Streak', unlocked: (activeProfile?.streak || 0) >= 2 },
+    { icon: '🌟', title: '4 Minggu Streak', unlocked: (activeProfile?.streak || 0) >= 4 },
+  ];
+
+  // PDF Export
+  const exportPDF = () => {
+    if (!activeProfile) return;
+    const doc = new jsPDF();
+    doc.setFontSize(18); doc.text('FORGE AI - Monthly Report', 14, 20);
+    doc.setFontSize(12);
+    doc.text(`Nama: ${activeProfile.name}`, 14, 30);
+    doc.text(`Total Sesi: ${logs.length} | Streak: ${activeProfile.streak} minggu`, 14, 38);
+    doc.text(`Tanggal: ${new Date().toLocaleDateString('id-ID')}`, 14, 46);
+    let y = 58;
+    doc.setFontSize(14); doc.text('Riwayat Latihan', 14, y); y += 8;
+    doc.setFontSize(10);
+    for (const log of logs.slice(0, 15)) {
+      doc.text(`${log.date} - ${log.focus} (${calculateTotalVolume(log.exercises)}kg)`, 14, y); y += 6;
+      if (y > 270) { doc.addPage(); y = 20; }
+    }
+    y += 6; doc.setFontSize(14); doc.text('Personal Records', 14, y); y += 8; doc.setFontSize(10);
+    for (const [name, pr] of getPersonalRecords()) {
+      doc.text(`${name}: ${pr.weight}kg`, 14, y); y += 6;
+      if (y > 270) { doc.addPage(); y = 20; }
+    }
+    doc.save(`forge-ai-report-${activeProfile.name}.pdf`);
+    showToast("PDF berhasil diexport!");
+  };
+
+  // Push notification reminder
+  useEffect(() => {
+    if (!activeProfile || !('Notification' in window)) return;
+    if (Notification.permission === 'default') Notification.requestPermission();
+    if (Notification.permission === 'granted' && logs.length > 0) {
+      const daysSince = Math.floor((Date.now() - new Date(logs[0].date + 'T00:00:00').getTime()) / 86400000);
+      if (daysSince >= 2) {
+        const key = `forge-notif-${logs[0].date}`;
+        if (!localStorage.getItem(key)) {
+          new Notification('🏋️ Forge AI', { body: `Sudah ${daysSince} hari belum latihan. Yuk gaspol, ${activeProfile.name}!`, icon: '/icon.svg' });
+          localStorage.setItem(key, '1');
+        }
+      }
+    }
+  }, [activeProfile, logs]);
+
   const [shareData, setShareData] = useState<{ focus: string; duration: number; exercises: Exercise[]; volume: number } | null>(null);
 
   // Dark/Light mode
@@ -571,7 +664,7 @@ export default function App() {
     }
   };
 
-  const readAndPreviewFile = (file: File) => {
+  const readAndPreviewFile = async (file: File) => {
     if (!file.type.startsWith("image/")) {
       setScannerError("File yang diunggah harus berupa gambar!");
       return;
@@ -579,11 +672,12 @@ export default function App() {
     setScannerError(null);
     setScannerResult(null);
 
+    const compressed = await imageCompression(file, { maxSizeMB: 0.5, maxWidthOrHeight: 1024 });
     const reader = new FileReader();
     reader.onloadend = () => {
       setScannerImage(reader.result as string);
     };
-    reader.readAsDataURL(file);
+    reader.readAsDataURL(compressed);
   };
 
   const runEquipmentScan = async () => {
@@ -1738,7 +1832,28 @@ export default function App() {
               </div>
 
               {/* APPLE HEALTH SUMMARY CHART */}
-              <HealthSummary profileId={activeProfile.id} />
+              {/* PROGRESS CHART - Volume per Session */}
+              {logs.length > 1 && (
+                <div className="bg-[#121212] rounded-xl p-5 border border-zinc-800/10">
+                  <h3 className="text-xs uppercase tracking-widest text-[#c4c9ac] font-bold mb-3">Volume per Sesi</h3>
+                  <div className="h-[160px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={logs.slice(0, 10).reverse().map(l => ({ date: l.date.slice(5), vol: calculateTotalVolume(l.exercises) }))}>
+                        <defs>
+                          <linearGradient id="volGrad" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#c3f400" stopOpacity={0.3}/>
+                            <stop offset="95%" stopColor="#c3f400" stopOpacity={0}/>
+                          </linearGradient>
+                        </defs>
+                        <XAxis dataKey="date" tick={{ fill: '#888', fontSize: 12 }} axisLine={false} tickLine={false} />
+                        <YAxis hide />
+                        <Tooltip contentStyle={{ background: '#1a1a1a', border: '1px solid #333', borderRadius: 8, fontSize: 12 }} labelStyle={{ color: '#c3f400' }} />
+                        <Area type="monotone" dataKey="vol" stroke="#c3f400" fill="url(#volGrad)" strokeWidth={2} name="Volume (kg)" />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              )}
 
               {/* RECOVERY STATUS */}
               {logs.length > 0 && (
@@ -1772,6 +1887,40 @@ export default function App() {
                   </div>
                 </div>
               )}
+
+              {/* WEEKLY SCHEDULE */}
+              <div className="bg-[#121212] rounded-xl p-5 border border-zinc-800/10">
+                <h3 className="text-xs uppercase tracking-widest text-[#c4c9ac] font-bold mb-3">Jadwal Minggu Ini</h3>
+                <div className="grid grid-cols-7 gap-1">
+                  {(() => { const s = getAutoSchedule(); return DAYS.map(day => {
+                    const today = new Date().toLocaleDateString('id-ID', { weekday: 'long' });
+                    const isToday = today.toLowerCase() === day.toLowerCase();
+                    const focus = s[day] || '—';
+                    return (
+                      <div key={day} className={`text-center py-2 rounded-lg ${isToday ? 'bg-[#c3f400]/10 ring-1 ring-[#c3f400]' : ''}`}>
+                        <span className="text-[12px] font-bold text-zinc-400 block">{day.slice(0, 3)}</span>
+                        <span className={`text-[12px] font-bold block mt-1 ${focus === 'Rest' ? 'text-zinc-600' : isToday ? 'text-[#c3f400]' : 'text-white'}`}>
+                          {focus === 'Rest' ? '🛌' : focus}
+                        </span>
+                      </div>
+                    );
+                  }); })()}
+                </div>
+              </div>
+
+              {/* ACHIEVEMENTS */}
+              <div className="bg-[#121212] rounded-xl p-5 border border-zinc-800/10">
+                <h3 className="text-xs uppercase tracking-widest text-[#c4c9ac] font-bold mb-3 flex items-center gap-1.5">
+                  <Award className="w-3.5 h-3.5 text-[#c3f400]" /> Achievements
+                </h3>
+                <div className="flex flex-wrap gap-2">
+                  {getAchievements().map((a, i) => (
+                    <div key={i} className={`px-3 py-1.5 rounded-full text-[12px] font-bold flex items-center gap-1 ${a.unlocked ? 'bg-[#c3f400]/10 text-[#c3f400] border border-[#c3f400]/30' : 'bg-zinc-800/50 text-zinc-600 border border-zinc-700/30'}`}>
+                      <span>{a.icon}</span> {a.title}
+                    </div>
+                  ))}
+                </div>
+              </div>
 
               {/* DYNAMIC PLAN / START WORKOUT HERO AREA */}
               {!isActivelyTraining ? (
@@ -2618,6 +2767,9 @@ export default function App() {
             >
               <div className="flex justify-between items-center">
                 <h2 className="font-display text-2xl font-extrabold text-white tracking-tight">Progress & Recomp</h2>
+                <button onClick={exportPDF} className="text-[12px] font-bold text-[#c3f400] flex items-center gap-1 px-3 py-1.5 rounded-lg border border-[#c3f400]/30 hover:bg-[#c3f400]/10 transition-colors">
+                  <Download className="w-3.5 h-3.5" /> PDF
+                </button>
               </div>
 
               {/* ACTIVE AI RECOMPOSITION MATRIX INSIGHT CARD */}

@@ -14,25 +14,32 @@ AI-powered fitness companion built with React, Express, Gemini AI & Turso DB
 
 | Feature | Description |
 |---|---|
-| 🤖 **AI Workout Planner** | Generate personalized workout plans with smart muscle rotation — avoids redundant muscle groups based on 7-day training history |
-| 📊 **Body Recomposition** | BMI analysis with AI-generated nutrition advice (calories, protein targets, focus type) |
-| 💬 **AI Chat Trainer** | Conversational fitness coach powered by Gemini — motivational, casual Indonesian style |
-| 📸 **Gym Equipment Scanner** | Upload a photo of any gym machine → multimodal AI identifies it and explains proper form |
-| 📅 **Workout Logger** | Log sessions with exercises, sets, reps, weight tracking & interactive calendar view |
-| 🔥 **Weekly Streak** | Tracks consecutive weeks with at least 1 training session — resets if a full week is skipped |
-| 🏋️ **117+ Exercise Database** | Comprehensive exercise library covering chest, back, shoulders, arms, legs, core & cardio |
+| 🤖 **AI Workout Planner** | Generate personalized plans with smart muscle rotation — avoids redundant groups based on 7-day history |
+| 📊 **Progress Charts** | Volume per session visualization with Recharts |
+| 💬 **AI Chat Trainer** | Context-aware coach that knows your PRs, history & body composition |
+| 📸 **Gym Equipment Scanner** | Upload photo → AI identifies machine and explains proper form (with image compression) |
+| 📅 **Workout Logger** | Log sessions with exercises, sets, reps, weight & interactive calendar |
+| 🗓️ **Auto Schedule** | Smart weekly planner that adapts based on actual training history |
+| 🔥 **Weekly Streak** | Consecutive weeks with at least 1 session — resets if a full week is skipped |
+| 🏆 **Achievement System** | Unlock badges: First Session, 5/10/25/50 Sessions, 1000kg Volume, Streak milestones |
+| 🎯 **PR Tracker** | Auto-detect personal records with celebration popup on new PRs |
+| 🔄 **Recovery Status** | Shows muscle group recovery state (recovering/ready) based on recent logs |
+| 📤 **PDF Report Export** | Monthly summary with workout history and personal records |
+| 🔔 **Push Notifications** | Rest day reminders when you haven't trained in 2+ days |
+| 🏋️ **117+ Exercise Database** | Comprehensive library with YouTube & Google tutorial links per exercise |
 | ⏱️ **Rest Timer** | Built-in rest timer between sets |
-| 📈 **Progressive Overload Tracking** | Monitor strength progress over time |
+| 📈 **Body Recomposition** | BMI analysis with AI nutrition advice (calories, protein, focus type) |
 | 🏆 **Workout Share Card** | Generate shareable workout summary cards |
+| 📱 **Swipe Navigation** | Swipe between tabs for native mobile feel |
 
 ## 🛠️ Tech Stack
 
-- **Frontend**: React 19 + TypeScript + Tailwind CSS v4 + Motion (Framer Motion)
+- **Frontend**: React 19 + TypeScript + Tailwind CSS v4 + Motion + Recharts
 - **Backend**: Express.js (local) / Vercel Serverless Functions (production)
-- **AI**: Google Gemini 3.5 Flash (text + multimodal)
+- **AI**: Google Gemini 2.5 Flash → 2.0 Flash (auto-fallback on rate limit)
 - **Database**: Turso (libSQL) — edge-optimized SQLite
 - **Cache**: Upstash Redis
-- **Icons**: Lucide React
+- **Packages**: jsPDF, browser-image-compression, Recharts, Lucide React
 - **Build**: Vite 6
 
 ## 🚀 Getting Started
@@ -80,16 +87,12 @@ The app will be available at `http://localhost:3000`
 3. Add environment variables in **Settings → Environment Variables**
 4. Deploy 🎉
 
-The `vercel.json` handles:
-- Frontend: `vite build` → static files
-- API: `/api/*` → serverless function (`api/index.ts`)
-
 ## 📁 Project Structure
 
 ```
 forge-ai/
 ├── api/
-│   └── index.ts              # Vercel serverless function (Express app)
+│   └── index.ts              # Vercel serverless function
 ├── src/
 │   ├── App.tsx               # Main React application
 │   ├── exerciseDb.ts         # Exercise database (117+ exercises)
@@ -104,7 +107,7 @@ forge-ai/
 │   ├── types.ts              # TypeScript type definitions
 │   ├── main.tsx              # React entry point
 │   └── index.css             # Global styles
-├── server.ts                 # Local development server (Express + Vite)
+├── server.ts                 # Local dev server (Express + Vite)
 ├── vercel.json               # Vercel deployment config
 ├── vite.config.ts            # Vite build configuration
 └── .env.example              # Environment variables template
