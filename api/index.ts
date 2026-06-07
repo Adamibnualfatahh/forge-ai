@@ -100,6 +100,9 @@ async function initDb() {
       )
     `);
 
+    try { await db.execute("ALTER TABLE workouts ADD COLUMN time_start TEXT"); } catch (e) {}
+    try { await db.execute("ALTER TABLE workouts ADD COLUMN time_end TEXT"); } catch (e) {}
+
     await db.execute(`
       CREATE TABLE IF NOT EXISTS chat_history (
         id TEXT PRIMARY KEY,
@@ -351,15 +354,15 @@ app.get("/api/profiles/:id/logs/paginated", async (req, res) => {
 // 4. Save workout log for profile & increment sessions + streak
 app.post("/api/profiles/:id/logs", async (req, res) => {
   const profileId = req.params.id;
-  const { date, focus, location, equipment, exercises } = req.body;
+  const { date, focus, location, equipment, exercises, time_start, time_end } = req.body;
   const logId = Math.random().toString(36).substring(2, 11);
 
   try {
     const db = getDb();
     await db.execute({
-      sql: `INSERT INTO workouts (id, profile_id, date, focus, location, equipment, exercises) 
-            VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      args: [logId, profileId, date, focus, location, equipment, JSON.stringify(exercises)]
+      sql: `INSERT INTO workouts (id, profile_id, date, focus, location, equipment, exercises, time_start, time_end) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      args: [logId, profileId, date, focus, location, equipment, JSON.stringify(exercises), time_start || null, time_end || null]
     });
 
     // Audit log - fire and forget
@@ -473,7 +476,7 @@ app.delete("/api/profiles/:profileId/logs/:logId", async (req, res) => {
 // 4b. Update/Edit workout log
 app.put("/api/profiles/:profileId/logs/:logId", async (req, res) => {
   const { profileId, logId } = req.params;
-  const { date, focus, location, equipment, exercises } = req.body;
+  const { date, focus, location, equipment, exercises, time_start, time_end } = req.body;
   try {
     const db = getDb();
     
@@ -487,9 +490,9 @@ app.put("/api/profiles/:profileId/logs/:logId", async (req, res) => {
     }
 
     await db.execute({
-      sql: `UPDATE workouts SET date = ?, focus = ?, location = ?, equipment = ?, exercises = ? 
+      sql: `UPDATE workouts SET date = ?, focus = ?, location = ?, equipment = ?, exercises = ?, time_start = ?, time_end = ? 
             WHERE id = ? AND profile_id = ?`,
-      args: [date, focus, location, equipment, JSON.stringify(exercises), logId, profileId]
+      args: [date, focus, location, equipment, JSON.stringify(exercises), time_start || null, time_end || null, logId, profileId]
     });
 
     res.json({ success: true });

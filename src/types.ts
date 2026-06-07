@@ -41,6 +41,8 @@ export interface WorkoutLog {
   exercises: Exercise[];
   calories_burned?: number;
   avg_bpm?: number;
+  time_start?: string;
+  time_end?: string;
 }
 
 export interface RecompAnalysis {

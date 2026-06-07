@@ -303,6 +303,26 @@ export default function App() {
   // Delete configuration values
   const [deleteLogId, setDeleteLogId] = useState<string | null>(null);
 
+  // Unsaved changes dialog
+  const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
+  const [pendingTab, setPendingTab] = useState<typeof currentTab | null>(null);
+  const [loggerDirty, setLoggerDirty] = useState(false);
+
+  // Weight/reps input modal during active workout
+  const [showWeightModal, setShowWeightModal] = useState(false);
+  const [weightModalIndex, setWeightModalIndex] = useState<number | null>(null);
+  const [weightModalKg, setWeightModalKg] = useState("");
+  const [weightModalReps, setWeightModalReps] = useState("");
+
+  // Add exercise during active workout
+  const [showAddExerciseWorkout, setShowAddExerciseWorkout] = useState(false);
+  const [workoutNewExName, setWorkoutNewExName] = useState("");
+  const [workoutNewExSets, setWorkoutNewExSets] = useState("3");
+  const [workoutNewExReps, setWorkoutNewExReps] = useState("12");
+
+  // Full PR page
+  const [showFullPRPage, setShowFullPRPage] = useState(false);
+
   // States for inline exercises editing and reordering
   const [editingLoggerExIndex, setEditingLoggerExIndex] = useState<number | null>(null);
   const [editingEditExIndex, setEditingEditExIndex] = useState<number | null>(null);
@@ -779,6 +799,7 @@ export default function App() {
       await fetchLogs(activeProfile.id);
       await fetchProfiles();
       showToast("Workout tersimpan! 💪");
+      setLoggerDirty(false);
       setCurrentTab('dashboard');
     } catch (err) {
       setFormError("Koneksi gagal. Periksa jaringan.");
@@ -797,10 +818,82 @@ export default function App() {
 
   // Toggle set / exercises checkbox completion in active workout
   const toggleExerciseCheck = (index: number) => {
-    setCompletedExercises(prev => ({
-      ...prev,
-      [index]: !prev[index]
-    }));
+    if (!completedExercises[index]) {
+      // Opening modal to input weight/reps before marking complete
+      setWeightModalIndex(index);
+      const ex = todayPlan?.exercises[index];
+      setWeightModalKg(ex?.weight_kg?.toString() || "");
+      setWeightModalReps(ex?.reps?.match(/\d+/)?.[0] || "");
+      setShowWeightModal(true);
+    } else {
+      setCompletedExercises(prev => ({ ...prev, [index]: false }));
+    }
+  };
+
+  const confirmWeightModal = () => {
+    if (weightModalIndex === null) return;
+    // Update exercise weight in todayPlan
+    if (todayPlan && weightModalKg) {
+      const updated = [...todayPlan.exercises];
+      updated[weightModalIndex] = { ...updated[weightModalIndex], weight_kg: parseFloat(weightModalKg) || undefined };
+      if (weightModalReps) updated[weightModalIndex] = { ...updated[weightModalIndex], reps: weightModalReps };
+      setTodayPlan({ ...todayPlan, exercises: updated });
+    }
+    setCompletedExercises(prev => ({ ...prev, [weightModalIndex!]: true }));
+    setShowWeightModal(false);
+    setWeightModalIndex(null);
+  };
+
+  // Safe navigation with unsaved changes check
+  const safeSetTab = (tab: typeof currentTab) => {
+    if (currentTab === 'logger' && loggerDirty && tab !== 'logger') {
+      setPendingTab(tab);
+      setShowUnsavedDialog(true);
+    } else {
+      setCurrentTab(tab);
+    }
+  };
+
+  // Add/remove exercises during active workout
+  const addExerciseDuringWorkout = () => {
+    if (!workoutNewExName.trim() || !todayPlan) return;
+    const newEx: Exercise = {
+      name: workoutNewExName,
+      sets: parseInt(workoutNewExSets) || 3,
+      reps: workoutNewExReps || "12",
+      notes: "",
+    };
+    setTodayPlan({ ...todayPlan, exercises: [...todayPlan.exercises, newEx] });
+    setWorkoutNewExName("");
+    setShowAddExerciseWorkout(false);
+  };
+
+  const removeExerciseDuringWorkout = (index: number) => {
+    if (!todayPlan) return;
+    const updated = todayPlan.exercises.filter((_, i) => i !== index);
+    setTodayPlan({ ...todayPlan, exercises: updated });
+    // Clean up completed state
+    const newCompleted: { [key: string]: boolean } = {};
+    Object.entries(completedExercises).forEach(([k, v]) => {
+      const ki = parseInt(k);
+      if (ki < index) newCompleted[ki] = v as boolean;
+      else if (ki > index) newCompleted[ki - 1] = v as boolean;
+    });
+    setCompletedExercises(newCompleted);
+  };
+
+  // All Personal Records (not limited to 5)
+  const getAllPersonalRecords = () => {
+    const prs: Record<string, { weight: number; date: string }> = {};
+    for (const log of logs) {
+      for (const ex of log.exercises) {
+        if (ex.is_cardio || !ex.weight_kg) continue;
+        if (!prs[ex.name] || ex.weight_kg > prs[ex.name].weight) {
+          prs[ex.name] = { weight: ex.weight_kg, date: log.date };
+        }
+      }
+    }
+    return Object.entries(prs).sort((a, b) => b[1].weight - a[1].weight);
   };
 
   // Finished active workout checkpoint
@@ -825,6 +918,11 @@ export default function App() {
       }
 
       const todayDateStr = new Date().toISOString().split('T')[0];
+      const pad = (n: number) => String(n).padStart(2, '0');
+      const startDate = workoutStartTime ? new Date(workoutStartTime) : null;
+      const timeStart = startDate ? `${pad(startDate.getHours())}:${pad(startDate.getMinutes())}` : null;
+      const endDate = new Date();
+      const timeEnd = `${pad(endDate.getHours())}:${pad(endDate.getMinutes())}`;
       const res = await fetch(`/api/profiles/${activeProfile.id}/logs`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -835,22 +933,28 @@ export default function App() {
           equipment: "Pilihan Custom",
           exercises: todayPlan.exercises,
           calories_burned: mockCalories,
-          avg_bpm: mockBpm
+          avg_bpm: mockBpm,
+          time_start: timeStart,
+          time_end: timeEnd
         })
       });
 
       if (res.ok) {
         const vol = calculateTotalVolume(todayPlan.exercises);
-        setShareData({ focus: todayPlan.focus, duration: workoutElapsed, exercises: todayPlan.exercises, volume: vol });
+        const actualDuration = workoutStartTime ? Math.floor((Date.now() - workoutStartTime) / 1000) : workoutElapsed;
+        setShareData({ focus: todayPlan.focus, duration: actualDuration, exercises: todayPlan.exercises, volume: vol });
         setShowShare(true);
         setIsActivelyTraining(false);
         setCompletedExercises({});
         setWorkoutStartTime(null);
         await fetchLogs(activeProfile.id);
         await fetchProfiles();
+      } else {
+        showToast("Gagal menyimpan workout", "error");
       }
     } catch (err) {
       console.error(err);
+      showToast("Koneksi gagal. Coba lagi.", "error");
     } finally {
       setIsSavingLog(false);
     }
@@ -1312,6 +1416,11 @@ export default function App() {
     setEditExIsCardio(false);
     setEditExDuration("30");
     setEditExWeight("");
+
+    // Populate time from DB
+    const toTimeInput = (t?: string) => t ? t.replace('.', ':').replace(/^(\d):/, '0$1:') : '';
+    setEditTimeStart(toTimeInput(log.time_start));
+    setEditTimeEnd(toTimeInput(log.time_end));
   };
 
   // Save edited log changes
@@ -1326,14 +1435,12 @@ export default function App() {
           focus: editFocus,
           location: editLocation,
           equipment: editEquipment.join(", "),
-          exercises: editExercises
+          exercises: editExercises,
+          time_start: editTimeStart || null,
+          time_end: editTimeEnd || null
         })
       });
       if (res.ok) {
-        // Persist time for this log
-        if (editTimeStart && editTimeEnd) {
-          localStorage.setItem(`forge-time-${editingLog.id}`, JSON.stringify({ start: editTimeStart, end: editTimeEnd }));
-        }
         await fetchLogs(activeProfile.id);
         setEditingLog(null);
       } else {
@@ -1377,6 +1484,7 @@ export default function App() {
     };
 
     setLoggerExercises(prev => [...prev, newEx]);
+    setLoggerDirty(true);
     setCustomExerciseName("");
     setCustomExerciseNotes("");
     setCustomExerciseWeight("");
@@ -1755,8 +1863,8 @@ export default function App() {
           const diff = e.changedTouches[0].clientX - startX;
           const tabs: typeof currentTab[] = ['dashboard', 'logger', 'progress', 'chat', 'scanner'];
           const idx = tabs.indexOf(currentTab);
-          if (diff < -80 && idx < tabs.length - 1) setCurrentTab(tabs[idx + 1]);
-          if (diff > 80 && idx > 0) setCurrentTab(tabs[idx - 1]);
+          if (diff < -80 && idx < tabs.length - 1) safeSetTab(tabs[idx + 1]);
+          if (diff > 80 && idx > 0) safeSetTab(tabs[idx - 1]);
         }}
       >
         
@@ -1885,6 +1993,10 @@ export default function App() {
                       </div>
                     ))}
                   </div>
+                  <button onClick={() => setShowFullPRPage(true)}
+                    className="w-full mt-3 text-xs font-bold text-[#c3f400] border border-[#c3f400]/30 rounded-xl py-2.5 hover:bg-[#c3f400]/10 transition-colors flex items-center justify-center gap-1">
+                    Lihat Semua <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
                 </div>
               )}
 
@@ -2025,33 +2137,43 @@ export default function App() {
                     {todayPlan?.exercises.map((ex, index) => (
                       <div 
                         key={index} 
-                        onClick={() => toggleExerciseCheck(index)}
-                        className={`p-4 rounded-xl transition-all border cursor-pointer select-none flex items-center justify-between ${
+                        className={`p-4 rounded-xl transition-all border select-none flex items-center justify-between ${
                           completedExercises[index] 
                             ? "bg-zinc-900/45 border-zinc-800/70 opacity-60" 
                             : "bg-[#131313] border-zinc-800 hover:border-zinc-700"
                         }`}
                       >
-                        <div className="flex gap-3 items-center">
+                        <div className="flex gap-3 items-center flex-1 cursor-pointer" onClick={() => toggleExerciseCheck(index)}>
                           <MuscleIcon name={ex.name} size={40} />
                           <div>
                             <h4 className={`font-display text-md font-bold text-white ${completedExercises[index] ? "line-through text-zinc-500" : ""}`}>{ex.name}</h4>
                             <p className="font-sans text-xs text-[#c4c9ac] mt-1">
-                              <strong>{ex.sets} Sets</strong> x <strong>{ex.reps} Reps</strong> 
+                              <strong>{ex.sets} Sets</strong> x <strong>{ex.reps} Reps</strong>{ex.weight_kg ? ` • ${ex.weight_kg}kg` : ''}
                             </p>
                             <p className="font-mono text-[12px] text-[#a6e6ff] mt-0.5">{ex.notes}</p>
+                            {(() => { const pr = logs.reduce((best, l) => { const found = l.exercises.find(e => e.name === ex.name && e.weight_kg); return found && found.weight_kg! > (best || 0) ? found.weight_kg! : best; }, 0 as number); return pr > 0 ? <p className="text-[11px] text-yellow-400/80 mt-0.5">⚡ PR: {pr} kg</p> : null; })()}
                           </div>
                         </div>
                         
-                        <div className={`w-6 h-6 rounded-full flex items-center justify-center border-2 transition-all ${
-                          completedExercises[index] 
-                            ? "border-[#c3f400] bg-[#c3f400] text-black" 
-                            : "border-zinc-700"
-                        }`}>
-                          {completedExercises[index] && <Check className="w-4 h-4 stroke-[3]" />}
+                        <div className="flex items-center gap-2">
+                          <button onClick={(e) => { e.stopPropagation(); removeExerciseDuringWorkout(index); }}
+                            className="w-7 h-7 rounded-full flex items-center justify-center text-zinc-600 hover:text-red-400 hover:bg-red-500/10 transition-colors">
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                          <div onClick={() => toggleExerciseCheck(index)} className={`w-6 h-6 rounded-full flex items-center justify-center border-2 transition-all cursor-pointer ${
+                            completedExercises[index] 
+                              ? "border-[#c3f400] bg-[#c3f400] text-black" 
+                              : "border-zinc-700"
+                          }`}>
+                            {completedExercises[index] && <Check className="w-4 h-4 stroke-[3]" />}
+                          </div>
                         </div>
                       </div>
                     ))}
+                    <button onClick={() => setShowAddExerciseWorkout(true)}
+                      className="w-full border-2 border-dashed border-zinc-700 hover:border-[#c3f400]/50 rounded-xl py-3 text-sm font-bold text-zinc-400 hover:text-[#c3f400] flex items-center justify-center gap-1.5 transition-colors">
+                      <Plus className="w-4 h-4" /> Tambah Gerakan
+                    </button>
                   </div>
 
                   {/* Rest Timer */}
@@ -2160,11 +2282,12 @@ export default function App() {
                               </div>
                               <div>
                                 <span className="font-mono text-[12px] text-[#c4c9ac] font-bold block bg-zinc-900/40 py-0.5 px-2 rounded border border-zinc-800/20 inline-block">
-                                  {log.date} {log.location ? `@ ${log.location}` : ""}
+                                  {log.date} {log.time_start && log.time_end ? `• ${log.time_start}–${log.time_end}` : ''} {log.location ? `@ ${log.location}` : ""}
                                 </span>
                                 <h4 className="font-display text-md font-bold text-white mt-1.5">{log.focus}</h4>
                                 <p className="font-sans text-xs text-[#c4c9ac] mt-1">
                                   <strong>{log.exercises?.length || 0} gerakan</strong> direkam
+                                  {log.time_start && log.time_end && (() => { const [sh,sm] = log.time_start!.split(':').map(Number); const [eh,em] = log.time_end!.split(':').map(Number); const mins = (eh*60+em)-(sh*60+sm); return mins > 0 ? ` • ${mins} menit` : ''; })()}
                                 </p>
                                 {/* Apple Health Data Badges */}
                                 {(log.calories_burned || log.avg_bpm) && (
@@ -2216,11 +2339,9 @@ export default function App() {
                                     onClick={() => { 
                                       const vol = calculateTotalVolume(log.exercises);
                                       let dur = 0;
-                                      const saved = localStorage.getItem(`forge-time-${log.id}`);
-                                      if (saved) {
-                                        const { start, end } = JSON.parse(saved);
-                                        const [sh, sm] = start.split(':').map(Number);
-                                        const [eh, em] = end.split(':').map(Number);
+                                      if (log.time_start && log.time_end) {
+                                        const [sh, sm] = log.time_start.split(':').map(Number);
+                                        const [eh, em] = log.time_end.split(':').map(Number);
                                         dur = ((eh * 60 + em) - (sh * 60 + sm)) * 60;
                                         if (dur < 0) dur = 0;
                                       }
@@ -2459,12 +2580,22 @@ export default function App() {
                           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                             <div className="sm:col-span-1">
                               <label className="block text-[12px] text-zinc-400 font-bold mb-1 uppercase">Nama Gerakan</label>
-                              <input 
-                                type="text"
-                                value={inlineExName}
-                                onChange={(e) => setInlineExName(e.target.value)}
-                                className="w-full bg-[#111] border border-zinc-700 rounded h-8 px-2 text-xs text-white"
-                              />
+                              <div className="relative">
+                                <input 
+                                  type="text"
+                                  value={inlineExName}
+                                  onChange={(e) => setInlineExName(e.target.value)}
+                                  className="w-full bg-[#111] border border-zinc-700 rounded h-8 px-2 text-xs text-white"
+                                />
+                                {inlineExName.trim().length > 0 && !EXERCISE_DB.some(e => e.name === inlineExName) && (
+                                  <div className="absolute top-full left-0 right-0 mt-1 bg-[#1a1a1a] border border-zinc-800 rounded-lg max-h-36 overflow-y-auto z-20 shadow-lg">
+                                    {searchExercises(inlineExName).slice(0, 5).map(ex => (
+                                      <button key={ex.name} type="button" onMouseDown={(e) => { e.preventDefault(); setInlineExName(ex.name); setInlineExIsCardio(ex.category === 'cardio'); }}
+                                        className="w-full px-2.5 py-1.5 hover:bg-zinc-800 text-left text-xs text-white">{ex.name}</button>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
                             </div>
 
                             {inlineExIsCardio ? (
@@ -3309,7 +3440,7 @@ export default function App() {
       <nav className="fixed bottom-0 left-0 w-full ios-glass bg-[#121212]/80 dark-nav border-t border-[#2c2c2c] dark-border pt-2 pb-[max(env(safe-area-inset-bottom),12px)] px-3 flex justify-around items-center z-40" style={{ maxWidth: '430px', margin: '0 auto', right: 0 }}>
         {/* Tab 1: Dashboard */}
         <button 
-          onClick={() => setCurrentTab('dashboard')}
+          onClick={() => safeSetTab('dashboard')}
           aria-label="Dashboard"
           className={`flex flex-col items-center justify-center py-1.5 px-1 sm:px-3 rounded-xl transition-all scale-down active:scale-90 flex-1 sm:flex-none ${
             currentTab === 'dashboard' 
@@ -3323,7 +3454,7 @@ export default function App() {
 
         {/* Tab 2: Logger */}
         <button 
-          onClick={() => setCurrentTab('logger')}
+          onClick={() => safeSetTab('logger')}
           aria-label="Workout Logger"
           className={`flex flex-col items-center justify-center py-1.5 px-1 sm:px-3 rounded-xl transition-all scale-down active:scale-90 flex-1 sm:flex-none ${
             currentTab === 'logger' 
@@ -3337,7 +3468,7 @@ export default function App() {
 
         {/* Tab 3: Progress */}
         <button 
-          onClick={() => setCurrentTab('progress')}
+          onClick={() => safeSetTab('progress')}
           aria-label="Progress & Recomposition"
           className={`flex flex-col items-center justify-center py-1.5 px-1 sm:px-3 rounded-xl transition-all scale-down active:scale-90 flex-1 sm:flex-none ${
             currentTab === 'progress' 
@@ -3351,7 +3482,7 @@ export default function App() {
 
         {/* Tab 4: AI Chat */}
         <button 
-          onClick={() => setCurrentTab('chat')}
+          onClick={() => safeSetTab('chat')}
           aria-label="AI Chat Trainer"
           className={`flex flex-col items-center justify-center py-1.5 px-1 sm:px-3 rounded-xl transition-all scale-down active:scale-90 flex-1 sm:flex-none ${
             currentTab === 'chat' 
@@ -3365,7 +3496,7 @@ export default function App() {
 
         {/* Tab 5: Scanner */}
         <button 
-          onClick={() => setCurrentTab('scanner')}
+          onClick={() => safeSetTab('scanner')}
           aria-label="Scan Gym Equipment"
           className={`flex flex-col items-center justify-center py-1.5 px-1 sm:px-3 rounded-xl transition-all scale-down active:scale-90 flex-1 sm:flex-none ${
             currentTab === 'scanner' 
@@ -3598,12 +3729,22 @@ export default function App() {
                               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                                 <div className="sm:col-span-1">
                                   <label className="block text-[12px] text-zinc-500 font-bold mb-0.5">NAMA GERAKAN</label>
-                                  <input 
-                                    type="text"
-                                    value={inlineExName}
-                                    onChange={(e) => setInlineExName(e.target.value)}
-                                    className="w-full bg-[#111] border border-zinc-800 rounded h-7 px-2 text-xs text-white"
-                                  />
+                                  <div className="relative">
+                                    <input 
+                                      type="text"
+                                      value={inlineExName}
+                                      onChange={(e) => setInlineExName(e.target.value)}
+                                      className="w-full bg-[#111] border border-zinc-800 rounded h-7 px-2 text-xs text-white"
+                                    />
+                                    {inlineExName.trim().length > 0 && !EXERCISE_DB.some(e => e.name === inlineExName) && (
+                                      <div className="absolute top-full left-0 right-0 mt-1 bg-[#1a1a1a] border border-zinc-800 rounded-lg max-h-36 overflow-y-auto z-20 shadow-lg">
+                                        {searchExercises(inlineExName).slice(0, 5).map(ex => (
+                                          <button key={ex.name} type="button" onMouseDown={(e) => { e.preventDefault(); setInlineExName(ex.name); setInlineExIsCardio(ex.category === 'cardio'); }}
+                                            className="w-full px-2.5 py-1.5 hover:bg-zinc-800 text-left text-xs text-white">{ex.name}</button>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
                                 </div>
 
                                 {inlineExIsCardio ? (
@@ -3763,13 +3904,23 @@ export default function App() {
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                    <input 
-                      type="text"
-                      placeholder={editExIsCardio ? "Treadmill Run, dll" : "Nama gerakan"}
-                      value={editExName}
-                      onChange={(e) => setEditExName(e.target.value)}
-                      className="bg-black/40 border border-zinc-700 rounded h-8 px-2 text-xs text-white sm:col-span-1"
-                    />
+                    <div className="relative sm:col-span-1">
+                      <input 
+                        type="text"
+                        placeholder={editExIsCardio ? "Treadmill Run, dll" : "Nama gerakan"}
+                        value={editExName}
+                        onChange={(e) => setEditExName(e.target.value)}
+                        className="w-full bg-black/40 border border-zinc-700 rounded h-8 px-2 text-xs text-white"
+                      />
+                      {editExName.trim().length > 0 && !EXERCISE_DB.some(e => e.name === editExName) && (
+                        <div className="absolute top-full left-0 right-0 mt-1 bg-[#1a1a1a] border border-zinc-800 rounded-lg max-h-36 overflow-y-auto z-20 shadow-lg">
+                          {searchExercises(editExName).slice(0, 5).map(ex => (
+                            <button key={ex.name} type="button" onMouseDown={(e) => { e.preventDefault(); setEditExName(ex.name); setEditExIsCardio(ex.category === 'cardio'); }}
+                              className="w-full px-2.5 py-1.5 hover:bg-zinc-800 text-left text-xs text-white">{ex.name}</button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
 
                     {editExIsCardio ? (
                       <input 
@@ -3871,6 +4022,140 @@ export default function App() {
               <h3 className="font-display text-xl font-bold text-white mb-2">Sinkronisasi Apple Health</h3>
               <p className="text-sm text-zinc-400">Menarik data kalori aktif dan detak jantung dari Apple Watch...</p>
             </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* UNSAVED CHANGES DIALOG */}
+      <AnimatePresence>
+        {showUnsavedDialog && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-[110] backdrop-blur-sm">
+            <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} exit={{ scale: 0.9 }}
+              className="bg-[#121212] border border-zinc-800 rounded-2xl w-full max-w-xs p-6 text-center">
+              <AlertCircle className="w-10 h-10 text-yellow-400 mx-auto mb-3" />
+              <h3 className="font-display text-lg font-bold text-white mb-2">Perubahan Belum Disimpan</h3>
+              <p className="text-sm text-zinc-400 mb-5">Kamu punya gerakan yang belum disimpan. Tinggalkan halaman?</p>
+              <div className="flex gap-3">
+                <button onClick={() => setShowUnsavedDialog(false)}
+                  className="flex-1 bg-zinc-800 text-white font-bold py-2.5 rounded-xl text-sm border border-zinc-700">Kembali</button>
+                <button onClick={() => { setShowUnsavedDialog(false); setLoggerDirty(false); if (pendingTab) { setCurrentTab(pendingTab); setPendingTab(null); } }}
+                  className="flex-1 bg-red-500/20 text-red-400 font-bold py-2.5 rounded-xl text-sm border border-red-500/30">Tinggalkan</button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* WEIGHT/REPS INPUT MODAL */}
+      <AnimatePresence>
+        {showWeightModal && weightModalIndex !== null && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-[110] backdrop-blur-sm">
+            <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }}
+              className="bg-[#121212] border border-zinc-800 rounded-2xl w-full max-w-xs p-6">
+              <h3 className="font-display text-lg font-bold text-white mb-1">Catat Set</h3>
+              <p className="text-xs text-zinc-400 mb-4">{todayPlan?.exercises[weightModalIndex]?.name}</p>
+              <div className="space-y-3">
+                <div>
+                  <label className="text-[11px] text-zinc-500 uppercase font-bold">Berat (kg)</label>
+                  <input type="number" inputMode="decimal" value={weightModalKg} onChange={(e) => setWeightModalKg(e.target.value)}
+                    placeholder="0" className="w-full bg-zinc-900 border border-zinc-700 rounded-xl h-12 px-4 text-white text-lg font-bold mt-1" autoFocus />
+                </div>
+                <div>
+                  <label className="text-[11px] text-zinc-500 uppercase font-bold">Reps</label>
+                  <input type="number" inputMode="numeric" value={weightModalReps} onChange={(e) => setWeightModalReps(e.target.value)}
+                    placeholder="12" className="w-full bg-zinc-900 border border-zinc-700 rounded-xl h-12 px-4 text-white text-lg font-bold mt-1" />
+                </div>
+              </div>
+              <div className="flex gap-3 mt-5">
+                <button onClick={() => { setShowWeightModal(false); setWeightModalIndex(null); }}
+                  className="flex-1 bg-zinc-800 text-zinc-300 font-bold py-3 rounded-xl text-sm border border-zinc-700">Batal</button>
+                <button onClick={confirmWeightModal}
+                  className="flex-1 bg-[#c3f400] text-black font-bold py-3 rounded-xl text-sm">✓ Selesai</button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ADD EXERCISE DURING WORKOUT MODAL */}
+      <AnimatePresence>
+        {showAddExerciseWorkout && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-[110] backdrop-blur-sm">
+            <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }}
+              className="bg-[#121212] border border-zinc-800 rounded-2xl w-full max-w-xs p-6">
+              <h3 className="font-display text-lg font-bold text-white mb-4">Tambah Gerakan</h3>
+              <div className="space-y-3">
+                <div className="relative">
+                  <input type="text" value={workoutNewExName} onChange={(e) => setWorkoutNewExName(e.target.value)}
+                    placeholder="Nama gerakan" className="w-full bg-zinc-900 border border-zinc-700 rounded-xl h-11 px-4 text-white text-sm" autoFocus />
+                  {workoutNewExName.trim().length > 0 && !EXERCISE_DB.some(e => e.name === workoutNewExName) && (
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-[#1a1a1a] border border-zinc-800 rounded-xl max-h-40 overflow-y-auto z-20 shadow-lg">
+                      {searchExercises(workoutNewExName).slice(0, 5).map(ex => (
+                        <button key={ex.name} type="button" onMouseDown={(e) => { e.preventDefault(); setWorkoutNewExName(ex.name); }}
+                          className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-zinc-800 transition-colors text-left">
+                          <MuscleIcon name={ex.name} size={28} />
+                          <div>
+                            <span className="text-xs font-medium text-white block">{ex.name}</span>
+                            <span className="text-[10px] text-zinc-500">{ex.muscle}</span>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <input type="number" value={workoutNewExSets} onChange={(e) => setWorkoutNewExSets(e.target.value)}
+                    placeholder="Sets" className="flex-1 bg-zinc-900 border border-zinc-700 rounded-xl h-11 px-3 text-white text-sm" />
+                  <input type="text" value={workoutNewExReps} onChange={(e) => setWorkoutNewExReps(e.target.value)}
+                    placeholder="Reps" className="flex-1 bg-zinc-900 border border-zinc-700 rounded-xl h-11 px-3 text-white text-sm" />
+                </div>
+              </div>
+              <div className="flex gap-3 mt-5">
+                <button onClick={() => setShowAddExerciseWorkout(false)}
+                  className="flex-1 bg-zinc-800 text-zinc-300 font-bold py-3 rounded-xl text-sm border border-zinc-700">Batal</button>
+                <button onClick={addExerciseDuringWorkout} disabled={!workoutNewExName.trim()}
+                  className="flex-1 bg-[#c3f400] text-black font-bold py-3 rounded-xl text-sm disabled:opacity-50">Tambah</button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* FULL PERSONAL RECORDS PAGE */}
+      <AnimatePresence>
+        {showFullPRPage && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-[#0a0a0a] z-[100] overflow-y-auto">
+            <div className="w-full max-w-md mx-auto px-4 py-6 pb-24">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="font-display text-xl font-black text-white flex items-center gap-2">
+                  <Award className="w-5 h-5 text-[#c3f400]" /> Semua Personal Records
+                </h2>
+                <button onClick={() => setShowFullPRPage(false)} className="text-zinc-400 hover:text-white p-2 rounded-full bg-zinc-900 border border-zinc-800">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="space-y-2">
+                {getAllPersonalRecords().map(([name, pr], i) => (
+                  <div key={name} className="flex items-center justify-between py-3 px-4 bg-[#121212] rounded-xl border border-zinc-800/50">
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs font-bold text-zinc-500 w-6">#{i + 1}</span>
+                      <div>
+                        <span className="text-sm text-white font-medium">{i === 0 && '🏆 '}{name}</span>
+                        <span className="text-[11px] text-zinc-500 block">{pr.date}</span>
+                      </div>
+                    </div>
+                    <span className="text-sm font-bold text-[#c3f400]">{pr.weight} kg</span>
+                  </div>
+                ))}
+                {getAllPersonalRecords().length === 0 && (
+                  <p className="text-center text-zinc-500 text-sm py-8">Belum ada catatan berat. Mulai latihan dan catat beratmu!</p>
+                )}
+              </div>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
