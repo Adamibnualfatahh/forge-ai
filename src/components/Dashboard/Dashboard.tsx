@@ -3,7 +3,7 @@ import { motion } from "motion/react";
 import { 
   Calendar, Activity, TrendingUp, Flame, Dumbbell, Award, 
   MapPin, Clock, CheckCircle2, Zap, X, Plus, Trash2, Edit, Share2, ArrowRight, Sparkles, RefreshCw, Check,
-  Target, Crown, Star, Coffee
+  Target, Crown, Star, Coffee, Compass
 } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { Profile, WorkoutLog, Exercise, RecompAnalysis } from "../../types";
@@ -363,8 +363,29 @@ export default function Dashboard({
                     <p className="font-sans text-xs text-[#c4c9ac] mt-1">
                       <strong>{ex.sets} Sets</strong> x <strong>{ex.reps} Reps</strong>{ex.weight_kg ? ` • ${ex.weight_kg}kg` : ''}
                     </p>
-                    <p className="font-mono text-[12px] text-[#a6e6ff] mt-0.5">{ex.notes}</p>
-                    {(() => { const pr = logs.reduce((best, l) => { const found = l.exercises.find(e => e.name === ex.name && e.weight_kg); return found && found.weight_kg! > (best || 0) ? found.weight_kg! : best; }, 0 as number); return pr > 0 ? <p className="text-[11px] text-yellow-400/80 mt-0.5">⚡ PR: {pr} kg</p> : null; })()}
+                    {ex.notes && <p className="font-mono text-[12px] text-[#a6e6ff] mt-0.5">Note: {ex.notes}</p>}
+                    {(() => { const pr = logs.reduce((best, l) => { const found = l.exercises.find(e => e.name === ex.name && e.weight_kg); return found && found.weight_kg! > (best || 0) ? found.weight_kg! : best; }, 0 as number); return pr > 0 ? <p className="text-[11px] text-yellow-400/80 mt-0.5 mb-1">⚡ PR: {pr} kg</p> : null; })()}
+                    
+                    <div className="flex gap-3 mt-1.5" onClick={(e) => e.stopPropagation()}>
+                      <a
+                        href={`https://www.youtube.com/results?search_query=how+to+${encodeURIComponent(ex.name)}+form+tutorial`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 text-[11px] font-bold text-red-400 hover:text-red-300 transition-colors"
+                      >
+                        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M23.5 6.2a3 3 0 0 0-2.1-2.1C19.5 3.5 12 3.5 12 3.5s-7.5 0-9.4.6A3 3 0 0 0 .5 6.2 31.9 31.9 0 0 0 0 12a31.9 31.9 0 0 0 .5 5.8 3 3 0 0 0 2.1 2.1c1.9.6 9.4.6 9.4.6s7.5 0 9.4-.6a3 3 0 0 0 2.1-2.1c.4-1.9.5-5.8.5-5.8s0-3.9-.5-5.8ZM9.5 15.6V8.4l6.3 3.6-6.3 3.6Z"/></svg>
+                        YouTube
+                      </a>
+                      <a
+                        href={`https://www.google.com/search?q=${encodeURIComponent(ex.name + ' exercise form guide')}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 text-[11px] font-bold text-blue-400 hover:text-blue-300 transition-colors"
+                      >
+                        <Compass className="w-3.5 h-3.5" />
+                        Google
+                      </a>
+                    </div>
                   </div>
                 </div>
                 

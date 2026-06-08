@@ -345,6 +345,7 @@ export default function WorkoutLogger({
                           <label className="block text-[12px] text-zinc-400 font-bold mb-1 uppercase text-center">Beban kg</label>
                           <input 
                             type="number"
+                            step="any"
                             value={inlineExWeight}
                             onChange={(e) => setInlineExWeight(e.target.value)}
                             className="w-full bg-[#111] border border-zinc-700 rounded h-8 text-center text-xs text-[#c3f400]"
@@ -523,7 +524,7 @@ export default function WorkoutLogger({
               <div className="grid grid-cols-3 gap-1.5 sm:col-span-1">
                 <input type="number" placeholder="Sets" value={customExerciseSets} onChange={(e) => setCustomExerciseSets(e.target.value)} className="w-full bg-[#201f1f] border border-zinc-700/80 rounded h-10 px-2.5 text-xs text-white" />
                 <input type="text" placeholder="Reps" value={customExerciseReps} onChange={(e) => setCustomExerciseReps(e.target.value)} className="w-full bg-[#201f1f] border border-zinc-700/80 rounded h-10 px-2.5 text-xs text-white" />
-                <input type="number" placeholder="kg" value={customExerciseWeight} onChange={(e) => setCustomExerciseWeight(e.target.value)} className="w-full bg-[#201f1f] border border-zinc-700/80 rounded h-10 px-2.5 text-xs text-[#c3f400]" />
+                <input type="number" step="any" placeholder="kg" value={customExerciseWeight} onChange={(e) => setCustomExerciseWeight(e.target.value)} className="w-full bg-[#201f1f] border border-zinc-700/80 rounded h-10 px-2.5 text-xs text-[#c3f400]" />
               </div>
             )}
 

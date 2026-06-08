@@ -20,6 +20,7 @@ interface ProgressViewProps {
   onExportCSV: () => void;
   computedBmiVal: string;
   getBmiStatus: (bmi: string) => string;
+  onWeightLogged?: () => void;
 }
 
 export default function ProgressView({
@@ -35,8 +36,23 @@ export default function ProgressView({
   onExportPDF,
   onExportCSV,
   computedBmiVal,
-  getBmiStatus
+  getBmiStatus,
+  onWeightLogged
 }: ProgressViewProps) {
+  const getBmiPositionPercent = (bmiStr: string): number => {
+    const bmi = parseFloat(bmiStr);
+    if (!bmi || isNaN(bmi) || bmi <= 0) return 0;
+    
+    // Assume scale spans from BMI 15 to 35
+    const minBmi = 15;
+    const maxBmi = 35;
+    
+    if (bmi <= minBmi) return 0;
+    if (bmi >= maxBmi) return 100;
+    
+    return ((bmi - minBmi) / (maxBmi - minBmi)) * 100;
+  };
+
   return (
     <motion.div 
       key="progress"
@@ -152,14 +168,29 @@ export default function ProgressView({
             {getBmiStatus(computedBmiVal)}
           </p>
 
-          {/* Horizontal BMI status scale bar placeholder */}
-          <div className="w-full h-1 bg-zinc-800 rounded-full mt-4 overflow-hidden flex">
-            <div className="h-full bg-blue-600/50 w-[18.5%]"></div>
-            <div className="h-full bg-emerald-500 w-[25.5%]"></div>
-            <div className="h-full bg-orange-400 w-[15.5%] relative">
-              <div className="absolute right-0 top-1/2 -translate-y-1/2 w-2.5 h-2.5 bg-white border border-black rounded-full"></div>
+          {/* Horizontal BMI status scale bar */}
+          <div className="w-full mt-4 relative">
+            <div className="w-full h-2 bg-zinc-800 rounded-full overflow-hidden flex">
+              <div className="h-full bg-blue-600/50" style={{ width: '17.5%' }}></div>
+              <div className="h-full bg-emerald-500" style={{ width: '32.5%' }}></div>
+              <div className="h-full bg-orange-400" style={{ width: '25%' }}></div>
+              <div className="h-full bg-red-600" style={{ width: '25%' }}></div>
             </div>
-            <div className="h-full bg-red-600 w-[40.5%]"></div>
+            {/* Dynamic Indicator Dot */}
+            {parseFloat(computedBmiVal) > 0 && (
+              <div 
+                className="absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-white border-2 border-black rounded-full shadow-[0_0_8px_rgba(255,255,255,0.8)] transition-all duration-500"
+                style={{ left: `calc(${getBmiPositionPercent(computedBmiVal)}% - 6px)` }}
+              />
+            )}
+          </div>
+
+          {/* Compact BMI Legend directly under the bar */}
+          <div className="w-full mt-1.5 flex text-[9px] font-bold font-sans">
+            <span className="text-left text-blue-500/80" style={{ width: '17.5%' }}>&lt;18.5 (Kurang)</span>
+            <span className="text-center text-emerald-500" style={{ width: '32.5%' }}>18.5-24.9 (Ideal)</span>
+            <span className="text-center text-orange-400" style={{ width: '25%' }}>25.0-29.9 (Lebih)</span>
+            <span className="text-right text-red-500" style={{ width: '25%' }}>&ge;30.0 (Obesitas)</span>
           </div>
         </div>
       </div>
@@ -201,7 +232,7 @@ export default function ProgressView({
       </div>
 
       {/* Weight History Chart */}
-      <WeightChart profileId={activeProfile.id} />
+      <WeightChart profileId={activeProfile.id} onWeightLogged={onWeightLogged} />
 
       {/* Progressive Overload Tracking */}
       <ProgressiveOverload logs={logs} />

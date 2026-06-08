@@ -7,6 +7,7 @@ interface RestTimerState {
   remaining: number;
   running: boolean;
   endTime: number | null; // timestamp when timer will end
+  completed: boolean; // flag indicating the timer just naturally completed
 }
 
 interface ForgeState {
@@ -20,6 +21,7 @@ interface ForgeState {
   toggleRestTimer: () => void;
   resetRestTimer: () => void;
   tickRestTimer: () => void;
+  clearRestTimerCompleted: () => void;
 }
 
 export const useForgeStore = create<ForgeState>()(
@@ -28,10 +30,10 @@ export const useForgeStore = create<ForgeState>()(
       activeProfileId: null,
       setActiveProfileId: (id) => set({ activeProfileId: id }),
 
-      restTimer: { seconds: 90, remaining: 0, running: false, endTime: null },
+      restTimer: { seconds: 90, remaining: 0, running: false, endTime: null, completed: false },
 
       setRestTimerSeconds: (s) => set((state) => ({
-        restTimer: { ...state.restTimer, seconds: s, remaining: state.restTimer.running ? state.restTimer.remaining : 0 }
+        restTimer: { ...state.restTimer, seconds: s, remaining: state.restTimer.running ? state.restTimer.remaining : 0, completed: false }
       })),
 
       startRestTimer: () => set((state) => ({
@@ -39,7 +41,8 @@ export const useForgeStore = create<ForgeState>()(
           ...state.restTimer,
           remaining: state.restTimer.seconds,
           running: true,
-          endTime: Date.now() + state.restTimer.seconds * 1000
+          endTime: Date.now() + state.restTimer.seconds * 1000,
+          completed: false
         }
       })),
 
@@ -47,15 +50,15 @@ export const useForgeStore = create<ForgeState>()(
         const rt = state.restTimer;
         if (rt.running) {
           // pause - store remaining, clear endTime
-          return { restTimer: { ...rt, running: false, endTime: null } };
+          return { restTimer: { ...rt, running: false, endTime: null, completed: false } };
         } else {
           // resume - recalculate endTime from remaining
-          return { restTimer: { ...rt, running: true, endTime: Date.now() + rt.remaining * 1000 } };
+          return { restTimer: { ...rt, running: true, endTime: Date.now() + rt.remaining * 1000, completed: false } };
         }
       }),
 
       resetRestTimer: () => set((state) => ({
-        restTimer: { ...state.restTimer, remaining: 0, running: false, endTime: null }
+        restTimer: { ...state.restTimer, remaining: 0, running: false, endTime: null, completed: false }
       })),
 
       tickRestTimer: () => set((state) => {
@@ -63,10 +66,14 @@ export const useForgeStore = create<ForgeState>()(
         if (!rt.running || !rt.endTime) return state;
         const remaining = Math.max(0, Math.ceil((rt.endTime - Date.now()) / 1000));
         if (remaining <= 0) {
-          return { restTimer: { ...rt, remaining: 0, running: false, endTime: null } };
+          return { restTimer: { ...rt, remaining: 0, running: false, endTime: null, completed: true } };
         }
         return { restTimer: { ...rt, remaining } };
       }),
+
+      clearRestTimerCompleted: () => set((state) => ({
+        restTimer: { ...state.restTimer, completed: false }
+      })),
     }),
     {
       name: 'forge-storage',

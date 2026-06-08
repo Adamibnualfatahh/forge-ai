@@ -336,6 +336,7 @@ export default function App() {
   const [isSendingChat, setIsSendingChat] = useState(false);
   const exercisesListRef = useRef<HTMLDivElement>(null);
   const [isLoadingData, setIsLoadingData] = useState(false);
+  const hasRestored = useRef<string | null>(null);
 
   // Load baseline profiles on mount
   useEffect(() => {
@@ -367,14 +368,53 @@ export default function App() {
       setTbInput(activeProfile.height?.toString() || "");
       setBbInput(activeProfile.weight?.toString() || "");
       
-      // Use last logged workout as today's plan context, or prompt to generate
-      setTodayPlan(null);
-      
-      // Reset training flow
-      setIsActivelyTraining(false);
-      setCompletedExercises({});
+      // Try restoring active workout from localStorage
+      const savedWorkoutJson = localStorage.getItem(`forge-active-workout-${activeProfile.id}`);
+      if (savedWorkoutJson) {
+        try {
+          const savedWorkout = JSON.parse(savedWorkoutJson);
+          setTodayPlan(savedWorkout.todayPlan);
+          setIsActivelyTraining(savedWorkout.isActivelyTraining);
+          setCompletedExercises(savedWorkout.completedExercises || {});
+          setWorkoutStartTime(savedWorkout.workoutStartTime || null);
+          setWorkoutSessionLocation(savedWorkout.workoutSessionLocation || "Muscle Prime Gym");
+        } catch (e) {
+          console.error("Gagal load saved workout", e);
+          setTodayPlan(null);
+          setIsActivelyTraining(false);
+          setCompletedExercises({});
+          setWorkoutStartTime(null);
+        }
+      } else {
+        // Use last logged workout as today's plan context, or prompt to generate
+        setTodayPlan(null);
+        
+        // Reset training flow
+        setIsActivelyTraining(false);
+        setCompletedExercises({});
+        setWorkoutStartTime(null);
+      }
+      hasRestored.current = activeProfile.id;
     }
   }, [activeProfile]);
+
+  // Save active workout to localStorage
+  useEffect(() => {
+    if (activeProfile && hasRestored.current === activeProfile.id) {
+      if (isActivelyTraining && todayPlan) {
+        const workoutData = {
+          todayPlan,
+          isActivelyTraining,
+          completedExercises,
+          workoutStartTime,
+          workoutSessionLocation,
+        };
+        localStorage.setItem(`forge-active-workout-${activeProfile.id}`, JSON.stringify(workoutData));
+      } else {
+        localStorage.removeItem(`forge-active-workout-${activeProfile.id}`);
+      }
+    }
+  }, [activeProfile, todayPlan, isActivelyTraining, completedExercises, workoutStartTime, workoutSessionLocation]);
 
   const fetchLogs = async (id: string) => {
     try {
@@ -446,12 +486,24 @@ export default function App() {
     if (!activeProfile) return;
     setFormError("");
     if (!editProfileName.trim()) { setFormError("Nama wajib diisi"); return; }
-    if (!editProfileHeight || parseFloat(editProfileHeight) <= 0) { setFormError("Tinggi tidak valid"); return; }
-    if (!editProfileWeight || parseFloat(editProfileWeight) <= 0) { setFormError("Berat tidak valid"); return; }
+    
+    const heightVal = parseFloat(editProfileHeight.toString().replace(',', '.'));
+    const weightVal = parseFloat(editProfileWeight.toString().replace(',', '.'));
+    const targetVal = parseFloat(editProfileTarget.toString().replace(',', '.'));
+    
+    if (isNaN(heightVal) || heightVal <= 0) { setFormError("Tinggi tidak valid"); return; }
+    if (isNaN(weightVal) || weightVal <= 0) { setFormError("Berat tidak valid"); return; }
+    
     try {
       const res = await fetch(`/api/profiles/${activeProfile.id}`, {
         method: "PUT", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: editProfileName, height: parseFloat(editProfileHeight), weight: parseFloat(editProfileWeight), target_weight: parseFloat(editProfileTarget) || parseFloat(editProfileWeight), focus_area: activeProfile.focus_area || "Full Body" })
+        body: JSON.stringify({ 
+          name: editProfileName, 
+          height: heightVal, 
+          weight: weightVal, 
+          target_weight: isNaN(targetVal) ? weightVal : targetVal, 
+          focus_area: activeProfile.focus_area || "Full Body" 
+        })
       });
       if (!res.ok) { setFormError("Gagal menyimpan perubahan"); return; }
       const updated = await res.json();
@@ -639,11 +691,15 @@ export default function App() {
 
   const confirmWeightModal = () => {
     if (weightModalIndex === null) return;
-    // Update exercise weight in todayPlan
-    if (todayPlan && weightModalKg) {
+    // Update exercise weight and reps in todayPlan
+    if (todayPlan) {
       const updated = [...todayPlan.exercises];
-      updated[weightModalIndex] = { ...updated[weightModalIndex], weight_kg: parseFloat(weightModalKg) || undefined };
-      if (weightModalReps) updated[weightModalIndex] = { ...updated[weightModalIndex], reps: weightModalReps };
+      const weightVal = weightModalKg ? parseFloat(weightModalKg.replace(',', '.')) || undefined : undefined;
+      updated[weightModalIndex] = { 
+        ...updated[weightModalIndex], 
+        weight_kg: weightVal,
+        reps: weightModalReps || updated[weightModalIndex].reps
+      };
       setTodayPlan({ ...todayPlan, exercises: updated });
     }
     setCompletedExercises(prev => ({ ...prev, [weightModalIndex!]: true }));
@@ -1724,6 +1780,7 @@ export default function App() {
               onExportCSV={handleExportCSV}
               computedBmiVal={computedBmiVal}
               getBmiStatus={getBmiStatus}
+              onWeightLogged={fetchProfiles}
             />
           )}
 
@@ -1929,12 +1986,12 @@ export default function App() {
                 <input value={editProfileName} onChange={e => setEditProfileName(e.target.value)} placeholder="Nama"
                   className="w-full bg-[#131313] dark-input border border-zinc-700 rounded-xl h-11 px-3 text-white text-sm" />
                 <div className="grid grid-cols-2 gap-3">
-                  <input type="number" value={editProfileHeight} onChange={e => setEditProfileHeight(e.target.value)} placeholder="Tinggi (cm)"
+                  <input type="number" step="any" value={editProfileHeight} onChange={e => setEditProfileHeight(e.target.value)} placeholder="Tinggi (cm)"
                     className="bg-[#131313] dark-input border border-zinc-700 rounded-xl h-11 px-3 text-white text-sm" />
-                  <input type="number" value={editProfileWeight} onChange={e => setEditProfileWeight(e.target.value)} placeholder="Berat (kg)"
+                  <input type="number" step="any" value={editProfileWeight} onChange={e => setEditProfileWeight(e.target.value)} placeholder="Berat (kg)"
                     className="bg-[#131313] dark-input border border-zinc-700 rounded-xl h-11 px-3 text-white text-sm" />
                 </div>
-                <input type="number" value={editProfileTarget} onChange={e => setEditProfileTarget(e.target.value)} placeholder="Target Berat (kg)"
+                <input type="number" step="any" value={editProfileTarget} onChange={e => setEditProfileTarget(e.target.value)} placeholder="Target Berat (kg)"
                   className="w-full bg-[#131313] dark-input border border-zinc-700 rounded-xl h-11 px-3 text-white text-sm" />
                 {formError && showEditProfile && <p className="field-error-msg text-center">{formError}</p>}
                 <button onClick={handleEditProfile}
@@ -2417,7 +2474,13 @@ export default function App() {
               <div className="space-y-3">
                 <div>
                   <label className="text-[11px] text-zinc-500 uppercase font-bold">Berat (kg)</label>
-                  <input type="number" inputMode="decimal" value={weightModalKg} onChange={(e) => setWeightModalKg(e.target.value)}
+                  <input type="text" inputMode="decimal" value={weightModalKg} 
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (/^[0-9]*[.,]?[0-9]*$/.test(val)) {
+                        setWeightModalKg(val);
+                      }
+                    }}
                     placeholder="0" className="w-full bg-zinc-900 border border-zinc-700 rounded-xl h-12 px-4 text-white text-lg font-bold mt-1" autoFocus />
                 </div>
                 <div>

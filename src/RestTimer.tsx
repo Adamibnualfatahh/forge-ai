@@ -5,10 +5,9 @@ import { useForgeStore } from "./store";
 const PRESETS = [30, 60, 90, 120, 180];
 
 export default function RestTimer() {
-  const { restTimer, setRestTimerSeconds, startRestTimer, toggleRestTimer, resetRestTimer, tickRestTimer } = useForgeStore();
+  const { restTimer, setRestTimerSeconds, startRestTimer, toggleRestTimer, resetRestTimer, tickRestTimer, clearRestTimerCompleted } = useForgeStore();
   const { seconds, remaining, running } = restTimer;
   const intervalRef = useRef<number | null>(null);
-  const prevRunningRef = useRef(running);
   const prevRemainingRef = useRef(remaining);
 
   // Tick interval
@@ -51,15 +50,56 @@ export default function RestTimer() {
     } catch (e) {}
   };
 
-  // Detect timer nearing end & completion
+  // Request browser notification permission on mount
+  useEffect(() => {
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+  }, []);
+
+  // Show browser notification
+  const showBrowserNotification = () => {
+    const title = 'Rest Selesai!';
+    const options = {
+      body: 'Waktunya lanjut latihan! Yuk gaspol!',
+      icon: '/icon.svg',
+      vibrate: [200, 100, 200],
+      badge: '/icon.svg',
+      data: { url: window.location.origin }
+    };
+
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.ready.then((registration) => {
+        registration.showNotification(title, options);
+      }).catch((err) => {
+        console.error('Service worker not ready for notification', err);
+        if ('Notification' in window && Notification.permission === 'granted') {
+          new Notification(title, options);
+        }
+      });
+    } else if ('Notification' in window && Notification.permission === 'granted') {
+      new Notification(title, options);
+    }
+  };
+
+  // Detect timer nearing end
   useEffect(() => {
     if (running) {
-      if (remaining === 5) playIOSNotification('warning');
-      if (remaining === 0 && prevRemainingRef.current > 0) playIOSNotification('finished');
+      if (remaining === 5 && prevRemainingRef.current !== 5) {
+        playIOSNotification('warning');
+      }
     }
-    prevRunningRef.current = running;
     prevRemainingRef.current = remaining;
   }, [running, remaining]);
+
+  // Detect timer completion
+  useEffect(() => {
+    if (restTimer.completed) {
+      playIOSNotification('finished');
+      showBrowserNotification();
+      clearRestTimerCompleted();
+    }
+  }, [restTimer.completed, clearRestTimerCompleted]);
 
   // Hydrate timer on mount (recalculate from endTime)
   useEffect(() => { if (running) tickRestTimer(); }, []);

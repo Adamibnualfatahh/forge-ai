@@ -32,11 +32,10 @@ async function cacheSet(key: string, value: string, ttl = CACHE_TTL): Promise<vo
   try { await getRedis().setex(CACHE_PREFIX + key, ttl, value); } catch {}
 }
 
-async function cacheDel(pattern: string): Promise<void> {
+async function cacheDel(key: string): Promise<void> {
   try {
     const r = getRedis();
-    const keys = await r.keys(CACHE_PREFIX + pattern);
-    if (keys.length > 0) await r.del(...keys);
+    await r.del(CACHE_PREFIX + key);
   } catch {}
 }
 
@@ -251,6 +250,29 @@ async function initDb() {
         }
       });
       console.log("Seeded database with default profiles Adam and Thiara.");
+    }
+
+    // Sync all profiles' weights with their latest weight history entry
+    try {
+      await db.execute(`
+        UPDATE profiles 
+        SET weight = (
+          SELECT weight 
+          FROM weight_history 
+          WHERE weight_history.profile_id = profiles.id 
+          ORDER BY timestamp DESC 
+          LIMIT 1
+        )
+        WHERE EXISTS (
+          SELECT 1 
+          FROM weight_history 
+          WHERE weight_history.profile_id = profiles.id
+        )
+      `);
+      await cacheDel("profiles");
+      console.log("Synchronized profiles current weights with their latest weight history entries.");
+    } catch (e) {
+      console.error("Failed to sync weight history to profiles:", e);
     }
 
   } catch (error) {
@@ -883,6 +905,12 @@ app.post("/api/profiles/:id/weight-history", async (req, res) => {
       sql: "INSERT INTO weight_history (id, profile_id, weight, date, timestamp) VALUES (?,?,?,?,?)",
       args: [entryId, id, weight, date, Date.now()]
     });
+    // Update main profile weight to match the logged entry
+    await db.execute({
+      sql: "UPDATE profiles SET weight = ? WHERE id = ?",
+      args: [weight, id]
+    });
+    await cacheDel("profiles");
     await cacheDel(`weight:${id}`);
     res.json({ id: entryId, weight, date });
   } catch (e) { res.status(500).json({ error: "Failed to log weight" }); }
