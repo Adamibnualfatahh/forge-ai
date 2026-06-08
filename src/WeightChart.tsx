@@ -27,8 +27,11 @@ export default function WeightChart({ profileId }: { profileId: string }) {
   };
 
   const sorted = [...entries].sort((a, b) => a.timestamp - b.timestamp).slice(-10);
-  const maxW = Math.max(...sorted.map(e => e.weight), 1);
-  const minW = Math.min(...sorted.map(e => e.weight), 0);
+  const weights = sorted.map(e => e.weight);
+  const maxW = weights.length > 0 ? Math.max(...weights) : 1;
+  const rawMinW = weights.length > 0 ? Math.min(...weights) : 0;
+  // Give some padding at the bottom (5% of min value) so the lowest bar isn't zero height
+  const minW = Math.max(0, rawMinW - (rawMinW * 0.05));
   const range = maxW - minW || 1;
 
   return (

@@ -61,14 +61,14 @@ export default function GoalSetting({ profileId, currentWeight, totalSessions }:
       const done = start - current;
       pct = Math.min(100, Math.max(0, (done / needed) * 100));
       const left = current - target;
-      remaining = left <= 0 ? "Tercapai! 🎉" : `-${left.toFixed(1)} ${g.type === 'weight' ? 'kg' : 'sesi'} lagi`;
+      remaining = left <= 0 ? "Tercapai!" : `-${left.toFixed(1)} ${g.type === 'weight' ? 'kg' : 'sesi'} lagi`;
     } else {
       // Gaining (e.g. 60 → 75, or sessions 10 → 50)
       const needed = target - start;
       const done = current - start;
       pct = Math.min(100, Math.max(0, (done / needed) * 100));
       const left = target - current;
-      remaining = left <= 0 ? "Tercapai! 🎉" : `+${left.toFixed(1)} ${g.type === 'weight' ? 'kg' : 'sesi'} lagi`;
+      remaining = left <= 0 ? "Tercapai!" : `+${left.toFixed(1)} ${g.type === 'weight' ? 'kg' : 'sesi'} lagi`;
     }
 
     return { pct, current, remaining };

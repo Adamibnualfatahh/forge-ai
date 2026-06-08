@@ -29,7 +29,6 @@ import {
   ArrowRight,
   RefreshCw,
   Clock,
-  UserPlus,
   Compass,
   ArrowUpRight,
   Trash2,
@@ -58,6 +57,11 @@ import MuscleIcon from "./MuscleIcon";
 import ShareCard from "./ShareCard";
 import AppleHealth from "./AppleHealth";
 import HealthSummary from "./HealthSummary";
+import AIChat from "./components/AIChat/AIChat";
+import EquipmentScanner from "./components/Scanner/EquipmentScanner";
+import ProgressView from "./components/Progress/ProgressView";
+import Dashboard from "./components/Dashboard/Dashboard";
+import WorkoutLogger from "./components/WorkoutLogger/WorkoutLogger";
 
 import { useForgeStore } from "./store";
 
@@ -71,14 +75,8 @@ export default function App() {
   const setActiveProfile = (profile: Profile | null) => {
     setActiveProfileId(profile ? profile.id : null);
   };
-  // Custom Profile Form Dialog
-  const [showCreateDialog, setShowCreateDialog] = useState(false);
+  // Custom Profile Form Dialog (Removed as per user fixed requirements)
   const [showAppleHealth, setShowAppleHealth] = useState(false);
-  const [newProfileName, setNewProfileName] = useState("");
-  const [newProfileHeight, setNewProfileHeight] = useState("175");
-  const [newProfileWeight, setNewProfileWeight] = useState("75");
-  const [newProfileTargetWeight, setNewProfileTargetWeight] = useState("70");
-  const [newProfileFocus, setNewProfileFocus] = useState("Full Body");
 
   // Form error state
   const [formError, setFormError] = useState("");
@@ -88,18 +86,6 @@ export default function App() {
 
   // Target Focus Plan state
   const [loggerPlanFocus, setLoggerPlanFocus] = useState("Otomatis (Rekomendasi AI)");
-
-  // Scanner States
-  const [scannerImage, setScannerImage] = useState<string | null>(null);
-  const [scannerResult, setScannerResult] = useState<{
-    name: string;
-    description: string;
-    target_muscles: string;
-    proper_form: string;
-  } | null>(null);
-  const [isScanning, setIsScanning] = useState(false);
-  const [scannerError, setScannerError] = useState<string | null>(null);
-  const [isDragOver, setIsDragOver] = useState(false);
 
   // Saved gym equipment from scanner
   const [gymEquipmentList, setGymEquipmentList] = useState<string[]>(() => {
@@ -159,7 +145,7 @@ export default function App() {
     DAYS.forEach((day, i) => {
       if (schedule[day]) return;
       const d = new Date(monday); d.setDate(monday.getDate() + i);
-      if (d < now) { schedule[day] = '—'; return; }
+      if (d < now) { schedule[day] = 'Empty'; return; }
       if (i === 6) { schedule[day] = 'Rest'; return; }
       let pick = 'Rest';
       for (let a = 0; a < allFocuses.length; a++) {
@@ -175,14 +161,14 @@ export default function App() {
 
   // Achievements
   const getAchievements = () => [
-    { icon: '🎯', title: 'Sesi Pertama', unlocked: logs.length >= 1 },
-    { icon: '🔥', title: '5 Sesi', unlocked: logs.length >= 5 },
-    { icon: '💪', title: '10 Sesi', unlocked: logs.length >= 10 },
-    { icon: '🏆', title: '25 Sesi', unlocked: logs.length >= 25 },
-    { icon: '⚡', title: '50 Sesi', unlocked: logs.length >= 50 },
-    { icon: '🦁', title: '1000kg Volume', unlocked: logs.some(l => calculateTotalVolume(l.exercises) >= 1000) },
-    { icon: '📅', title: '2 Minggu Streak', unlocked: (activeProfile?.streak || 0) >= 2 },
-    { icon: '🌟', title: '4 Minggu Streak', unlocked: (activeProfile?.streak || 0) >= 4 },
+    { id: 'first', icon: 'Target', title: 'Sesi Pertama', unlocked: logs.length >= 1 },
+    { id: '5sess', icon: 'Flame', title: '5 Sesi', unlocked: logs.length >= 5 },
+    { id: '10sess', icon: 'Dumbbell', title: '10 Sesi', unlocked: logs.length >= 10 },
+    { id: '25sess', icon: 'Award', title: '25 Sesi', unlocked: logs.length >= 25 },
+    { id: '50sess', icon: 'Zap', title: '50 Sesi', unlocked: logs.length >= 50 },
+    { id: '1000vol', icon: 'Crown', title: '1000kg Volume', unlocked: logs.some(l => calculateTotalVolume(l.exercises) >= 1000) },
+    { id: '2streak', icon: 'Calendar', title: '2 Minggu Streak', unlocked: (activeProfile?.streak || 0) >= 2 },
+    { id: '4streak', icon: 'Star', title: '4 Minggu Streak', unlocked: (activeProfile?.streak || 0) >= 4 },
   ];
 
   // PDF Export
@@ -219,7 +205,7 @@ export default function App() {
       if (daysSince >= 2) {
         const key = `forge-notif-${logs[0].date}`;
         if (!localStorage.getItem(key)) {
-          new Notification('🏋️ Forge AI', { body: `Sudah ${daysSince} hari belum latihan. Yuk gaspol, ${activeProfile.name}!`, icon: '/icon.svg' });
+          new Notification('Forge AI', { body: `Sudah ${daysSince} hari belum latihan. Yuk gaspol, ${activeProfile.name}!`, icon: '/icon.svg' });
           localStorage.setItem(key, '1');
         }
       }
@@ -347,9 +333,7 @@ export default function App() {
 
   // AI Chat state
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
-  const [chatInput, setChatInput] = useState("");
   const [isSendingChat, setIsSendingChat] = useState(false);
-  const chatBottomRef = useRef<HTMLDivElement>(null);
   const exercisesListRef = useRef<HTMLDivElement>(null);
   const [isLoadingData, setIsLoadingData] = useState(false);
 
@@ -457,48 +441,6 @@ export default function App() {
     if (showFullHistory) fetchHistoryLogs(true);
   }, [showFullHistory]);
 
-  // Scroll to bottom of chat
-  useEffect(() => {
-    chatBottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [chatHistory]);
-
-  // Profiles Creation handler
-  const handleCreateProfile = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setFormError("");
-    if (!newProfileName.trim()) { setFormError("Nama wajib diisi"); return; }
-    if (!newProfileHeight || parseFloat(newProfileHeight) <= 0) { setFormError("Tinggi badan tidak valid"); return; }
-    if (!newProfileWeight || parseFloat(newProfileWeight) <= 0) { setFormError("Berat badan tidak valid"); return; }
-
-    try {
-      const res = await fetch("/api/profiles", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: newProfileName,
-          height: parseFloat(newProfileHeight),
-          weight: parseFloat(newProfileWeight),
-          target_weight: parseFloat(newProfileTargetWeight) || parseFloat(newProfileWeight),
-          focus_area: newProfileFocus
-        })
-      });
-
-      if (!res.ok) { setFormError("Gagal menyimpan profil. Coba lagi."); return; }
-      const data = await res.json();
-      await fetchProfiles();
-      setActiveProfile(data);
-      setShowCreateDialog(false);
-      setFormError("");
-      setNewProfileName("");
-      setNewProfileHeight("175");
-      setNewProfileWeight("75");
-      setNewProfileTargetWeight("70");
-      setNewProfileFocus("Full Body");
-    } catch (err) {
-      setFormError("Koneksi gagal. Periksa jaringan.");
-    }
-  };
-
   // Profile Edit handler
   const handleEditProfile = async () => {
     if (!activeProfile) return;
@@ -599,141 +541,6 @@ export default function App() {
     }
   };
 
-  // Render message markdown formatting nicely
-  const renderFormattedMessage = (text: string) => {
-    if (!text) return null;
-    const lines = text.split('\n');
-    let insideList = false;
-    let listItems: React.ReactNode[] = [];
-    const elements: React.ReactNode[] = [];
-
-    const formatInline = (str: string) => {
-      const parts = str.split(/\*\*([^*]+)\*\*/g);
-      return parts.map((part, i) => {
-        if (i % 2 === 1) {
-          return <strong key={i} className="text-[#c3f400] font-black">{part}</strong>;
-        }
-        const codeParts = part.split(/`([^`]+)`/g);
-        return codeParts.map((subPart, j) => {
-          if (j % 2 === 1) {
-            return (
-              <code key={j} className="font-mono bg-zinc-950 px-1.5 py-0.5 border border-zinc-850 rounded text-xs text-[#a6e6ff] select-all">
-                {subPart}
-              </code>
-            );
-          }
-          return subPart;
-        });
-      });
-    };
-
-    lines.forEach((line, index) => {
-      const trimmed = line.trim();
-      const isBullet = trimmed.startsWith('- ') || trimmed.startsWith('* ') || /^\d+\.\s/.test(trimmed);
-
-      if (isBullet) {
-        if (!insideList) {
-          insideList = true;
-          listItems = [];
-        }
-        const content = trimmed.replace(/^[-*]\s+/, '').replace(/^\d+\.\s+/, '');
-        listItems.push(
-          <li key={index} className="ml-4 list-disc pl-1 mb-1 text-zinc-300">
-            {formatInline(content)}
-          </li>
-        );
-      } else {
-        if (insideList) {
-          elements.push(
-            <ul key={`list-${index}`} className="my-2 space-y-1 list-inside">
-              {listItems}
-            </ul>
-          );
-          insideList = false;
-          listItems = [];
-        }
-
-        if (trimmed === '') {
-          elements.push(<div key={`spacer-${index}`} className="h-2" />);
-        } else {
-          elements.push(
-            <p key={index} className="leading-relaxed mb-1 text-zinc-300">
-              {formatInline(line)}
-            </p>
-          );
-        }
-      }
-    });
-
-    if (insideList) {
-      elements.push(
-        <ul key="list-last" className="my-2 space-y-1 list-inside">
-          {listItems}
-        </ul>
-      );
-    }
-
-    return <div className="space-y-1">{elements}</div>;
-  };
-
-  // Scanner image upload reader helper
-  const handleScannerFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      readAndPreviewFile(file);
-    }
-  };
-
-  const readAndPreviewFile = async (file: File) => {
-    if (!file.type.startsWith("image/")) {
-      setScannerError("File yang diunggah harus berupa gambar!");
-      return;
-    }
-    setScannerError(null);
-    setScannerResult(null);
-
-    const compressed = await imageCompression(file, { maxSizeMB: 0.5, maxWidthOrHeight: 1024 });
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setScannerImage(reader.result as string);
-    };
-    reader.readAsDataURL(compressed);
-  };
-
-  const runEquipmentScan = async () => {
-    if (!scannerImage) return;
-    setIsScanning(true);
-    setScannerError(null);
-    setScannerResult(null);
-
-    try {
-      const res = await fetch("/api/scan-equipment", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ image: scannerImage })
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        setScannerResult(data);
-      } else {
-        const errData = await res.json();
-        setScannerError(errData.error || "Gagal memindai alat gym.");
-      }
-    } catch (err) {
-      console.error(err);
-      setScannerError("Gagal menghubungi server untuk memindai alat.");
-    } finally {
-      setIsScanning(false);
-    }
-  };
-
-  const resetScanner = () => {
-    setScannerImage(null);
-    setScannerResult(null);
-    setScannerError(null);
-  };
-
   const saveEquipmentToGym = (name: string) => {
     if (!name || gymEquipmentList.includes(name)) return;
     const updated = [...gymEquipmentList, name];
@@ -798,7 +605,7 @@ export default function App() {
       if (detectedPRs.length > 0) setNewPRs(detectedPRs);
       await fetchLogs(activeProfile.id);
       await fetchProfiles();
-      showToast("Workout tersimpan! 💪");
+      showToast("Workout berhasil tersimpan!");
       setLoggerDirty(false);
       setCurrentTab('dashboard');
     } catch (err) {
@@ -995,21 +802,15 @@ export default function App() {
   };
 
   // Send Conversational Chat to Forge AI
-  const handleSendChat = async (inputMessageProps?: string) => {
-    if (!activeProfile) return;
-    const msgToSend = inputMessageProps || chatInput;
-    if (!msgToSend.trim()) return;
-
-    if (!inputMessageProps) {
-      setChatInput("");
-    }
+  const handleSendChat = async (message: string) => {
+    if (!activeProfile || !message.trim()) return;
     
     // Optimistic UI updates
     const userMsg: ChatMessage = {
       id: Math.random().toString(),
       profile_id: activeProfile.id,
       sender: 'user',
-      message: msgToSend,
+      message: message,
       timestamp: Date.now()
     };
     
@@ -1020,7 +821,7 @@ export default function App() {
       const res = await fetch(`/api/profiles/${activeProfile.id}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: msgToSend })
+        body: JSON.stringify({ message: message })
       });
 
       if (res.ok) {
@@ -1071,14 +872,29 @@ export default function App() {
     if (!exercises || exercises.length === 0) return 0;
     return exercises.reduce((acc, ex) => {
       if (ex.is_cardio) return acc;
-      const sets = ex.sets || 0;
-      let repsCount = 10;
-      const match = ex.reps.match(/\d+/);
-      if (match) {
-        repsCount = parseInt(match[0]);
-      }
       const weight = ex.weight_kg || 0;
-      return acc + (sets * repsCount * weight);
+      
+      // Handle reps format: "8,8,6" or "10-12" or "12"
+      let totalReps = 0;
+      const repsStr = ex.reps.toString();
+      
+      if (repsStr.includes(",")) {
+        // Format: "8, 8, 6" - sum all numbers
+        const parts = repsStr.split(",");
+        parts.forEach(p => {
+          const match = p.match(/\d+/);
+          if (match) totalReps += parseInt(match[0]);
+        });
+        // If we have detail per set, we don't multiply by ex.sets again 
+        // because usually the number of commas matches the number of sets
+        return acc + (totalReps * weight);
+      } else {
+        // Format: "12" or "10-12"
+        const match = repsStr.match(/\d+/);
+        const repsPerSet = match ? parseInt(match[0]) : 10;
+        const sets = ex.sets || 0;
+        return acc + (sets * repsPerSet * weight);
+      }
     }, 0);
   };
 
@@ -1123,14 +939,18 @@ export default function App() {
   };
 
   const getAnimalAnalogy = (volumeKg: number): string => {
-    if (volumeKg <= 0) return "Sesi ini tidak memiliki angkatan beban.";
-    if (volumeKg <= 100) return `Setara dengan mengangkat seekor Kambing Dewasa! 🐐 (${volumeKg} kg)`;
-    if (volumeKg <= 250) return `Setara dengan mengangkat seekor Gorila Gunung! 🦍 (${volumeKg} kg)`;
-    if (volumeKg <= 500) return `Setara dengan mengangkat seekor Beruang Grizzly! 🐻 (${volumeKg} kg)`;
-    if (volumeKg <= 1000) return `Setara dengan mengangkat seekor Sapi Limousin! 🐂 (${volumeKg} kg)`;
-    if (volumeKg <= 2500) return `Setara dengan mengangkat seekor Badak Sumatra! 🦏 (${volumeKg} kg)`;
-    if (volumeKg <= 5000) return `Setara dengan mengangkat seekor Gajah Asia! 🐘 (${volumeKg} kg)`;
-    return `Setara dengan mengangkat sebuah Truk Ekspedisi Colt Diesel! 🚚 (${volumeKg} kg)`;
+    if (volumeKg <= 0) return "Sesi ini belum memiliki catatan beban.";
+    if (volumeKg <= 20) return `Setara dengan menjinjing 2 galon air mineral penuh! (${volumeKg} kg)`;
+    if (volumeKg <= 50) return `Setara dengan memindahkan sekarung beras 50kg ke gudang! (${volumeKg} kg)`;
+    if (volumeKg <= 100) return `Setara dengan menggendong seekor Kambing Etawa jantan dewasa! (${volumeKg} kg)`;
+    if (volumeKg <= 250) return `Setara dengan mengangkat satu unit Mesin Cuci Front Load! (${volumeKg} kg)`;
+    if (volumeKg <= 500) return `Setara dengan menahan bobot seekor Gorila Punggung Perak! (${volumeKg} kg)`;
+    if (volumeKg <= 800) return `Setara dengan mengangkat sebuah Piano Grand klasik! (${volumeKg} kg)`;
+    if (volumeKg <= 1500) return `Setara dengan mengangkat sebuah mobil City Car! (${volumeKg} kg)`;
+    if (volumeKg <= 3000) return `Setara dengan menggeser seekor Badak Putih Afrika! (${volumeKg} kg)`;
+    if (volumeKg <= 6000) return `Setara dengan menahan beban seekor Gajah Afrika Dewasa! (${volumeKg} kg)`;
+    if (volumeKg <= 12000) return `Setara dengan mengangkat satu unit Helikopter Bell 206! (${volumeKg} kg)`;
+    return `Setara dengan mengangkat sebuah Truk Tronton penuh muatan! (${volumeKg} kg)`;
   };
 
   // Calendar Renderer Helper
@@ -1499,14 +1319,6 @@ export default function App() {
     }
   };
 
-  // Quick Action Buttons definitions inside Chat tab to improve user UX
-  const chatPrompts = [
-    "Bagaimana cara squats yang benar?",
-    "Menu protein murah meriah penambah otot",
-    "Tips rampingkan perut buncit dalam sebulan",
-    "Mending surplus kalori atau deficit kalori saat ideal?"
-  ];
-
   // Calculated BMI dynamically
   const computedBmiVal = activeProfile?.weight && activeProfile?.height 
     ? (activeProfile.weight / Math.pow(activeProfile.height / 100, 2)).toFixed(1)
@@ -1589,86 +1401,6 @@ export default function App() {
 
           {/* Registration closed - only Adam & Thiara allowed */}
         </motion.div>
-
-        {/* Create Profile Dialog Pop-up */}
-        <AnimatePresence>
-          {showCreateDialog && (
-            <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50 backdrop-blur-sm" onClick={() => setShowCreateDialog(false)}>
-              <motion.div 
-                initial={{ scale: 0.95, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.95, opacity: 0 }}
-                onClick={e => e.stopPropagation()}
-                className="bg-[#201f1f] border border-[#444933] rounded-2xl w-full max-w-sm p-5 relative overflow-hidden"
-              >
-                <div className="absolute top-0 left-0 w-full h-[3px] bg-[#c3f400]"></div>
-                <button 
-                  onClick={() => setShowCreateDialog(false)}
-                  className="absolute top-4 right-4 text-[#c4c9ac] hover:text-white"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-
-                <h3 className="font-display text-xl font-bold tracking-tight text-white mb-4">Profil Baru</h3>
-                <form onSubmit={handleCreateProfile} className="space-y-4">
-                  <div>
-                    <label className="block text-xs uppercase tracking-widest text-[#c4c9ac] font-bold mb-1">Nama Lengkap</label>
-                    <input 
-                      type="text" 
-                      required
-                      placeholder="e.g. John Doe"
-                      value={newProfileName}
-                      onChange={(e) => setNewProfileName(e.target.value)}
-                      className="w-full bg-[#131313] border border-zinc-800 rounded-xl h-11 px-3 text-white focus:outline-none focus:border-[#c3f400] transition-colors"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs uppercase tracking-widest text-[#c4c9ac] font-bold mb-1">Tinggi Badan (cm)</label>
-                      <input 
-                        type="number" 
-                        required
-                        value={newProfileHeight}
-                        onChange={(e) => setNewProfileHeight(e.target.value)}
-                        className="w-full bg-[#131313] border border-zinc-800 rounded-xl h-11 px-3 text-white focus:outline-none focus:border-[#c3f400] transition-colors"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs uppercase tracking-widest text-[#c4c9ac] font-bold mb-1">Berat Badan (kg)</label>
-                      <input 
-                        type="number" 
-                        required
-                        value={newProfileWeight}
-                        onChange={(e) => setNewProfileWeight(e.target.value)}
-                        className="w-full bg-[#131313] border border-zinc-800 rounded-xl h-11 px-3 text-white focus:outline-none focus:border-[#c3f400] transition-colors"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs uppercase tracking-widest text-[#c4c9ac] font-bold mb-1">Target Berat (kg)</label>
-                    <input 
-                      type="number" 
-                      required
-                      value={newProfileTargetWeight}
-                      onChange={(e) => setNewProfileTargetWeight(e.target.value)}
-                      className="w-full bg-[#131313] border border-zinc-800 rounded-xl h-11 px-3 text-white focus:outline-none focus:border-[#c3f400] transition-colors"
-                    />
-                  </div>
-
-                  {formError && <p className="field-error-msg text-center">{formError}</p>}
-                  <button 
-                    type="submit" 
-                    className="w-full bg-[#c3f400] hover:bg-[#abd600] text-black font-display font-bold py-3 px-4 rounded-xl shadow-[0_4px_15px_rgba(195,244,0,0.2)] transition-opacity"
-                  >
-                    Simpan Profil
-                  </button>
-                </form>
-              </motion.div>
-            </div>
-          )}
-        </AnimatePresence>
       </div>
     );
   }
@@ -1702,7 +1434,9 @@ export default function App() {
             onClick={() => setNewPRs([])}
           >
             <div className="bg-[#201f1f] border border-[#c3f400]/40 rounded-2xl p-6 max-w-sm w-full text-center">
-              <div className="text-4xl mb-3">🏆</div>
+              <div className="flex justify-center mb-3">
+                <Award className="w-12 h-12 text-[#c3f400] animate-bounce" />
+              </div>
               <h3 className="font-display text-xl font-black text-[#c3f400] mb-2">NEW PR!</h3>
               <div className="space-y-2 mb-4">
                 {newPRs.map((pr, i) => (
@@ -1870,1544 +1604,145 @@ export default function App() {
         
         {/* INTERACTIVE TAB WINDOWS */}
         <AnimatePresence mode="wait">
-          {currentTab === 'dashboard' && (
-            <motion.div 
-              key="dashboard"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.25 }}
-              className="space-y-6"
-            >
-              {/* Hello Welcome and Current Date Panel */}
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                <div>
-                  <h2 className="font-display text-2xl font-bold text-white tracking-tight">Halo, {activeProfile.name}</h2>
-                  <p className="font-sans text-sm text-[#c4c9ac] mt-1 flex items-center gap-1.5">
-                    <Calendar className="w-4 h-4 text-[#c3f400]" />
-                    {new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-                  </p>
-                </div>
-                {/* Visual state badges / Apple Health Toggle */}
-                <div className="flex items-center gap-2 mt-4 sm:mt-0">
-                </div>
-              </div>
-
-              {/* BENTO STATS CARDS GRID */}
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                <div className="bg-[#121212] rounded-xl p-5 flex flex-col justify-between border border-zinc-800/10 min-h-[110px] secondary-glow">
-                  <span className="text-xs uppercase tracking-wider text-[#c4c9ac] font-semibold">Total Sesi Gym</span>
-                  <div className="flex items-baseline gap-2 mt-2">
-                    <span className="font-display text-4xl font-extrabold text-white">{activeProfile.total_sessions || logs.length}</span>
-                    <TrendingUp className="w-5 h-5 text-[#a6e6ff]" />
-                  </div>
-                </div>
-
-                <div className="bg-[#121212] rounded-xl p-5 flex flex-col justify-between border border-[#c3f400]/20 min-h-[110px] ai-glow">
-                  <span className="text-xs uppercase tracking-wider text-[#c4c9ac] font-semibold">Weekly Streak</span>
-                  <div className="flex items-baseline gap-2 mt-2">
-                    <span className="font-display text-4xl font-extrabold text-[#c3f400]">{activeProfile.streak ?? 0}</span>
-                    <Flame className="w-5 h-5 text-[#c3f400] fill-[#c3f400]/50" />
-                  </div>
-                </div>
-
-                {/* Animals Equivalence & Day Weight Lifted summary */}
-                {(() => {
-                  const todayDateStrStr = new Date().toISOString().split('T')[0];
-                  const todayLogs = logs.filter(log => log.date === todayDateStrStr);
-                  const todayVolume = todayLogs.reduce((acc, log) => acc + calculateTotalVolume(log.exercises), 0);
-                  const latestLogStr = logs[0];
-                  const latestVolume = latestLogStr ? calculateTotalVolume(latestLogStr.exercises) : 0;
-                  const currentVol = todayVolume > 0 ? todayVolume : latestVolume;
-
-                  return (
-                    <div className="col-span-2 md:col-span-1 bg-[#121212] rounded-xl p-5 flex flex-col justify-between border border-zinc-800/10 min-h-[110px] secondary-glow">
-                      <span className="text-xs uppercase tracking-wider text-[#c4c9ac] font-semibold">
-                        {todayVolume > 0 ? "Angkatan Hari Ini" : "Beban Sesi Terakhir"}
-                      </span>
-                      <div className="mt-2 text-left">
-                        <div className="flex items-baseline gap-2">
-                          <span className="font-display text-3xl font-extrabold text-[#c3f400]">{currentVol.toLocaleString('id-ID')} kg</span>
-                          <Dumbbell className="w-4.5 h-4.5 text-[#c3f400]" />
-                        </div>
-                        <p className="font-sans text-[12px] text-[#c4c9ac] mt-1 leading-tight flex items-center gap-1">
-                          <span>{getAnimalAnalogy(currentVol)}</span>
-                        </p>
-                      </div>
-                    </div>
-                  );
-                })()}
-              </div>
-
-              {/* APPLE HEALTH SUMMARY CHART */}
-              {/* PROGRESS CHART - Volume per Session */}
-              {logs.length > 1 && (
-                <div className="bg-[#121212] rounded-xl p-5 border border-zinc-800/10">
-                  <h3 className="text-xs uppercase tracking-widest text-[#c4c9ac] font-bold mb-3">Volume per Sesi</h3>
-                  <div className="h-[160px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={logs.slice(0, 10).reverse().map(l => ({ date: l.date.slice(5), vol: calculateTotalVolume(l.exercises) }))}>
-                        <defs>
-                          <linearGradient id="volGrad" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#c3f400" stopOpacity={0.3}/>
-                            <stop offset="95%" stopColor="#c3f400" stopOpacity={0}/>
-                          </linearGradient>
-                        </defs>
-                        <XAxis dataKey="date" tick={{ fill: '#888', fontSize: 12 }} axisLine={false} tickLine={false} />
-                        <YAxis hide />
-                        <Tooltip contentStyle={{ background: '#1a1a1a', border: '1px solid #333', borderRadius: 8, fontSize: 12 }} labelStyle={{ color: '#c3f400' }} />
-                        <Area type="monotone" dataKey="vol" stroke="#c3f400" fill="url(#volGrad)" strokeWidth={2} name="Volume (kg)" />
-                      </AreaChart>
-                    </ResponsiveContainer>
-                  </div>
-                </div>
-              )}
-
-              {/* RECOVERY STATUS */}
-              {logs.length > 0 && (
-                <div className="bg-[#121212] rounded-xl p-5 border border-zinc-800/10">
-                  <h3 className="text-xs uppercase tracking-widest text-[#c4c9ac] font-bold mb-3">Recovery Status</h3>
-                  <div className="flex flex-wrap gap-2">
-                    {getRecoveryStatus().map(m => (
-                      <div key={m.group} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-bold ${m.status === 'recovering' ? 'bg-orange-500/10 text-orange-400 border border-orange-500/20' : m.status === 'ready' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-zinc-800/50 text-zinc-500 border border-zinc-700/30'}`}>
-                        <span>{m.status === 'recovering' ? '🔥' : m.status === 'ready' ? '✅' : '💤'}</span>
-                        <span className="capitalize">{m.group}</span>
-                        {m.days >= 0 && <span className="text-[12px] opacity-70">• {m.days}h</span>}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* PERSONAL RECORDS */}
-              {getPersonalRecords().length > 0 && (
-                <div className="bg-[#121212] rounded-xl p-5 border border-zinc-800/10">
-                  <h3 className="text-xs uppercase tracking-widest text-[#c4c9ac] font-bold mb-3 flex items-center gap-1.5">
-                    <Award className="w-3.5 h-3.5 text-[#c3f400]" /> Personal Records
-                  </h3>
-                  <div className="space-y-2">
-                    {getPersonalRecords().map(([name, pr], i) => (
-                      <div key={name} className="flex items-center justify-between py-1.5 border-b border-zinc-800/50 last:border-0">
-                        <span className="text-sm text-white font-medium truncate flex-1">{i === 0 && '🏆 '}{name}</span>
-                        <span className="text-sm font-bold text-[#c3f400] ml-2">{pr.weight} kg</span>
-                      </div>
-                    ))}
-                  </div>
-                  <button onClick={() => setShowFullPRPage(true)}
-                    className="w-full mt-3 text-xs font-bold text-[#c3f400] border border-[#c3f400]/30 rounded-xl py-2.5 hover:bg-[#c3f400]/10 transition-colors flex items-center justify-center gap-1">
-                    Lihat Semua <ArrowRight className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              )}
-
-              {/* WEEKLY SCHEDULE */}
-              <div className="bg-[#121212] rounded-xl p-5 border border-zinc-800/10">
-                <h3 className="text-xs uppercase tracking-widest text-[#c4c9ac] font-bold mb-3">Jadwal Minggu Ini</h3>
-                <div className="grid grid-cols-7 gap-1">
-                  {(() => { const s = getAutoSchedule(); return DAYS.map(day => {
-                    const today = new Date().toLocaleDateString('id-ID', { weekday: 'long' });
-                    const isToday = today.toLowerCase() === day.toLowerCase();
-                    const focus = s[day] || '—';
-                    return (
-                      <div key={day} className={`text-center py-2 rounded-lg ${isToday ? 'bg-[#c3f400]/10 ring-1 ring-[#c3f400]' : ''}`}>
-                        <span className="text-[12px] font-bold text-zinc-400 block">{day.slice(0, 3)}</span>
-                        <span className={`text-[12px] font-bold block mt-1 ${focus === 'Rest' ? 'text-zinc-600' : isToday ? 'text-[#c3f400]' : 'text-white'}`}>
-                          {focus === 'Rest' ? '🛌' : focus}
-                        </span>
-                      </div>
-                    );
-                  }); })()}
-                </div>
-              </div>
-
-              {/* ACHIEVEMENTS */}
-              <div className="bg-[#121212] rounded-xl p-5 border border-zinc-800/10">
-                <h3 className="text-xs uppercase tracking-widest text-[#c4c9ac] font-bold mb-3 flex items-center gap-1.5">
-                  <Award className="w-3.5 h-3.5 text-[#c3f400]" /> Achievements
-                </h3>
-                <div className="flex flex-wrap gap-2">
-                  {getAchievements().map((a, i) => (
-                    <div key={i} className={`px-3 py-1.5 rounded-full text-[12px] font-bold flex items-center gap-1 ${a.unlocked ? 'bg-[#c3f400]/10 text-[#c3f400] border border-[#c3f400]/30' : 'bg-zinc-800/50 text-zinc-600 border border-zinc-700/30'}`}>
-                      <span>{a.icon}</span> {a.title}
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* DYNAMIC PLAN / START WORKOUT HERO AREA */}
-              {!isActivelyTraining ? (
-                <div className="bg-[#201f1f] rounded-2xl p-6 border border-[#444933] shadow-md relative overflow-hidden ai-glow">
-                  <div className="absolute top-0 right-0 w-32 h-32 bg-[#c3f400]/10 rounded-full blur-2xl -translate-y-1/2 translate-x-1/2 pointer-events-none"></div>
-
-                  {todayPlan ? (
-                    <>
-                      <div className="flex justify-between items-start mb-4">
-                        <div className="space-y-1">
-                          <span className="text-xs font-mono uppercase tracking-widest text-[#c4c9ac] font-bold">Fokus Hari Ini</span>
-                          <h3 className="font-display text-2xl font-black text-white">{todayPlan.focus}</h3>
-                        </div>
-                        <span className="bg-[#c3f400]/15 text-[#c3f400] border border-[#c3f400]/30 text-[12px] font-bold px-2.5 py-1 rounded-full flex items-center gap-1">
-                          <Zap className="w-3.5 h-3.5 fill-[#c3f400]" />
-                          Ready
-                        </span>
-                      </div>
-
-                      <div className="space-y-3 border-t border-zinc-800 pt-4 mb-6">
-                        <p className="font-sans text-sm text-[#c4c9ac] flex items-center gap-2">
-                          <MapPin className="w-4 h-4 text-[#a6e6ff]" />
-                          Lokasi: <strong>{workoutSessionLocation}</strong>
-                        </p>
-                        <p className="font-sans text-sm text-[#c4c9ac] flex items-center gap-2">
-                          <Clock className="w-4 h-4 text-[#a6e6ff]" />
-                          Estimasi: <strong>{todayPlan.exercises.length} gerakan • ~45 menit</strong>
-                        </p>
-                      </div>
-
-                      <div className="flex flex-col sm:flex-row gap-3">
-                        <button 
-                          onClick={triggerStartWorkout}
-                          className="flex-1 bg-[#c3f400] hover:bg-[#abd600] text-black font-display font-extrabold py-4 px-4 rounded-xl flex items-center justify-center gap-2 transition-all shadow-[0_4px_20px_rgba(195,244,0,0.3)] hover:scale-[1.01] active:scale-95"
-                        >
-                          <CheckCircle2 className="w-5 h-5 fill-black/10" />
-                          Mulai Workout
-                        </button>
-                        <button 
-                          onClick={() => {
-                            setLoggerLocation(workoutSessionLocation);
-                            setCurrentTab('logger');
-                          }}
-                          className="font-sans text-sm font-semibold text-[#c4c9ac] hover:text-white border border-zinc-700 bg-zinc-900/60 hover:bg-zinc-800/80 px-5 py-4 rounded-xl transition-all"
-                        >
-                          Ubah Plan
-                        </button>
-                      </div>
-                    </>
-                  ) : (
-                    <div className="text-center py-4">
-                      <Sparkles className="w-8 h-8 text-[#c3f400] mx-auto mb-3" />
-                      <h3 className="font-display text-xl font-black text-white mb-2">Belum Ada Plan Hari Ini</h3>
-                      <p className="text-sm text-[#c4c9ac] mb-5">Generate plan AI atau buat manual di Logger</p>
-                      <div className="flex gap-3">
-                        <button 
-                          onClick={() => { setCurrentTab('logger'); setTimeout(() => generateWorkoutPlan(), 300); }}
-                          disabled={isGeneratingWorkoutPlan}
-                          className="flex-1 bg-[#c3f400] hover:bg-[#abd600] text-black font-display font-extrabold py-4 px-4 rounded-xl flex items-center justify-center gap-2 transition-all"
-                        >
-                          {isGeneratingWorkoutPlan ? <RefreshCw className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
-                          Generate Plan
-                        </button>
-                        <button 
-                          onClick={() => setCurrentTab('logger')}
-                          className="font-sans text-sm font-semibold text-[#c4c9ac] hover:text-white border border-zinc-700 bg-zinc-900/60 hover:bg-zinc-800/80 px-5 py-4 rounded-xl transition-all"
-                        >
-                          Manual
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                // ACTIVE GYM WORKOUT FLOW PANEL
-                <motion.div 
-                  initial={{ opacity: 0, scale: 0.98 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  className="bg-[#201f1f] rounded-2xl p-6 border-2 border-[#c3f400] shadow-[0_0_30px_rgba(195,244,0,0.15)] relative"
-                >
-                  <div className="flex justify-between items-center mb-6 border-b border-zinc-800 pb-4">
-                    <div>
-                      <span className="text-[12px] uppercase font-semibold tracking-wide text-[#c3f400]">Sedang Latihan</span>
-                      <h3 className="font-display text-2xl font-black text-white">{todayPlan?.focus}</h3>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <div className="text-right">
-                        <span className="text-[12px] text-zinc-500 block">Durasi</span>
-                        <span className="font-mono text-lg font-bold text-white">{Math.floor(workoutElapsed/60)}:{String(workoutElapsed%60).padStart(2,'0')}</span>
-                      </div>
-                      <button 
-                        onClick={() => { setIsActivelyTraining(false); setWorkoutStartTime(null); }}
-                        className="text-zinc-400 hover:text-white p-1 rounded-full bg-zinc-900 hover:bg-zinc-800 transition-colors"
-                      >
-                        <X className="w-5 h-5" />
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Tickable Exercises Stack */}
-                  <div className="space-y-4 mb-6">
-                    {todayPlan?.exercises.map((ex, index) => (
-                      <div 
-                        key={index} 
-                        className={`p-4 rounded-xl transition-all border select-none flex items-center justify-between ${
-                          completedExercises[index] 
-                            ? "bg-zinc-900/45 border-zinc-800/70 opacity-60" 
-                            : "bg-[#131313] border-zinc-800 hover:border-zinc-700"
-                        }`}
-                      >
-                        <div className="flex gap-3 items-center flex-1 cursor-pointer" onClick={() => toggleExerciseCheck(index)}>
-                          <MuscleIcon name={ex.name} size={40} />
-                          <div>
-                            <h4 className={`font-display text-md font-bold text-white ${completedExercises[index] ? "line-through text-zinc-500" : ""}`}>{ex.name}</h4>
-                            <p className="font-sans text-xs text-[#c4c9ac] mt-1">
-                              <strong>{ex.sets} Sets</strong> x <strong>{ex.reps} Reps</strong>{ex.weight_kg ? ` • ${ex.weight_kg}kg` : ''}
-                            </p>
-                            <p className="font-mono text-[12px] text-[#a6e6ff] mt-0.5">{ex.notes}</p>
-                            {(() => { const pr = logs.reduce((best, l) => { const found = l.exercises.find(e => e.name === ex.name && e.weight_kg); return found && found.weight_kg! > (best || 0) ? found.weight_kg! : best; }, 0 as number); return pr > 0 ? <p className="text-[11px] text-yellow-400/80 mt-0.5">⚡ PR: {pr} kg</p> : null; })()}
-                          </div>
-                        </div>
-                        
-                        <div className="flex items-center gap-2">
-                          <button onClick={(e) => { e.stopPropagation(); removeExerciseDuringWorkout(index); }}
-                            className="w-7 h-7 rounded-full flex items-center justify-center text-zinc-600 hover:text-red-400 hover:bg-red-500/10 transition-colors">
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                          <div onClick={() => toggleExerciseCheck(index)} className={`w-6 h-6 rounded-full flex items-center justify-center border-2 transition-all cursor-pointer ${
-                            completedExercises[index] 
-                              ? "border-[#c3f400] bg-[#c3f400] text-black" 
-                              : "border-zinc-700"
-                          }`}>
-                            {completedExercises[index] && <Check className="w-4 h-4 stroke-[3]" />}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                    <button onClick={() => setShowAddExerciseWorkout(true)}
-                      className="w-full border-2 border-dashed border-zinc-700 hover:border-[#c3f400]/50 rounded-xl py-3 text-sm font-bold text-zinc-400 hover:text-[#c3f400] flex items-center justify-center gap-1.5 transition-colors">
-                      <Plus className="w-4 h-4" /> Tambah Gerakan
-                    </button>
-                  </div>
-
-                  {/* Rest Timer */}
-                  <RestTimer />
-
-                  {/* Actions checklist bar */}
-                  <div className="flex gap-3 items-center">
-                    <button 
-                      onClick={submitActiveWorkout}
-                      disabled={isSavingLog}
-                      className="flex-1 bg-[#c3f400] hover:bg-[#abd600] text-black font-display font-extrabold py-4 px-4 rounded-xl flex items-center justify-center gap-2 transition-all disabled:opacity-50"
-                    >
-                      <Award className="w-5 h-5" />
-                      {isSavingLog ? "Menyimpan..." : "Selesai & Simpan"}
-                    </button>
-                    <button 
-                      onClick={() => setIsActivelyTraining(false)}
-                      className="font-sans text-sm text-[#c4c9ac] hover:text-white border border-zinc-800 hover:bg-zinc-900/60 px-5 py-4 rounded-xl transition-all"
-                    >
-                      Discard
-                    </button>
-                  </div>
-                </motion.div>
-              )}
-
-              {/* CALENDAR VIEW */}
-              {renderCalendar()}
-
-              {/* TODAY'S PLAN & NUTRITION */}
-              <div className="bg-[#121212] rounded-2xl p-5 border border-zinc-800 space-y-4">
-                <div className="flex items-center justify-between">
-                  <h4 className="font-display font-bold text-white text-sm">Plan Hari Ini</h4>
-                  <button onClick={generateWorkoutPlan} disabled={isGeneratingWorkoutPlan}
-                    className="text-[12px] text-[#c3f400] font-bold flex items-center gap-1 disabled:opacity-50">
-                    {isGeneratingWorkoutPlan ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />} {isGeneratingWorkoutPlan ? "..." : "Refresh"}
-                  </button>
-                </div>
-                {todayPlan && (
-                  <div className="space-y-2">
-                    {todayPlan.exercises.slice(0, 4).map((ex, i) => (
-                      <div key={i} className="flex justify-between items-center text-xs">
-                        <span className="text-zinc-300">{ex.name}</span>
-                        <span className="text-zinc-500">{ex.sets}×{ex.reps}</span>
-                      </div>
-                    ))}
-                    {todayPlan.exercises.length > 4 && (
-                      <span className="text-[12px] text-zinc-500">+{todayPlan.exercises.length - 4} gerakan lagi</span>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* DAILY NUTRITION GUIDE */}
-              {latestRecomp && (
-                <div className="bg-[#121212] rounded-2xl p-5 border border-zinc-800 space-y-3">
-                  <h4 className="font-display font-bold text-white text-sm">Target Nutrisi Harian</h4>
-                  <div className="grid grid-cols-3 gap-2">
-                    <div className="bg-zinc-900 rounded-xl p-3 text-center">
-                      <span className="text-lg font-bold text-white block">{latestRecomp.calories}</span>
-                      <span className="text-[12px] text-zinc-500">Kcal</span>
-                    </div>
-                    <div className="bg-zinc-900 rounded-xl p-3 text-center">
-                      <span className="text-lg font-bold text-[#a6e6ff] block">{latestRecomp.protein}g</span>
-                      <span className="text-[12px] text-zinc-500">Protein</span>
-                    </div>
-                    <div className="bg-zinc-900 rounded-xl p-3 text-center">
-                      <span className="text-lg font-bold text-[#c3f400] block">{latestRecomp.focus_type === 'Caloric Deficit' ? 'Deficit' : latestRecomp.focus_type === 'Surplus' ? 'Surplus' : 'Maintain'}</span>
-                      <span className="text-[12px] text-zinc-500">Strategi</span>
-                    </div>
-                  </div>
-                  <p className="text-[12px] text-zinc-500 leading-relaxed">
-                    {latestRecomp.focus_type === 'Caloric Deficit' 
-                      ? `Fokus defisit ~300-500 kcal. Prioritaskan protein ${latestRecomp.protein}g/hari untuk jaga massa otot.`
-                      : latestRecomp.focus_type === 'Surplus'
-                      ? `Surplus 300-500 kcal di atas TDEE. Pastikan ${latestRecomp.protein}g protein untuk growth.`
-                      : `Makan sesuai TDEE. ${latestRecomp.protein}g protein untuk rekomposisi tubuh optimal.`}
-                  </p>
-                </div>
-              )}
-
-              {/* Goals quick view */}
-              {activeProfile && <GoalSetting profileId={activeProfile.id} currentWeight={activeProfile.weight} totalSessions={activeProfile.total_sessions} />}
-
-              {/* RECENT GYM LOGS HISTORY */}
-              <div className="space-y-4">
-                <h3 className="font-display text-xl font-bold text-white tracking-tight flex items-center gap-2">
-                  <Activity className="w-5 h-5 text-[#a6e6ff]" />
-                  Riwayat Gym Terakhir
-                </h3>
-                {logs.length === 0 ? (
-                  <div className="bg-[#121212] p-6 text-center rounded-xl border border-zinc-800/60">
-                    <p className="font-sans text-[#c4c9ac]">Belum ada riwayat tercatat. Mulai sesi pertamamu!</p>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {logs.slice(0, 4).map((log) => {
-                      const logVol = calculateTotalVolume(log.exercises);
-                      const isConfirmingDelete = deleteLogId === log.id;
-
-                      return (
-                        <div key={log.id} className="bg-[#121212] p-5 rounded-xl border border-zinc-800 flex flex-col gap-4">
-                          <div className="flex flex-col sm:flex-row justify-between sm:items-start gap-4">
-                            <div className="flex items-start gap-3">
-                              <div className="p-2.5 rounded-lg bg-zinc-900 text-[#c3f400] mt-1 shrink-0 border border-zinc-800">
-                                <Activity className="w-5 h-5" />
-                              </div>
-                              <div>
-                                <span className="font-mono text-[12px] text-[#c4c9ac] font-bold block bg-zinc-900/40 py-0.5 px-2 rounded border border-zinc-800/20 inline-block">
-                                  {log.date} {log.time_start && log.time_end ? `• ${log.time_start}–${log.time_end}` : ''} {log.location ? `@ ${log.location}` : ""}
-                                </span>
-                                <h4 className="font-display text-md font-bold text-white mt-1.5">{log.focus}</h4>
-                                <p className="font-sans text-xs text-[#c4c9ac] mt-1">
-                                  <strong>{log.exercises?.length || 0} gerakan</strong> direkam
-                                  {log.time_start && log.time_end && (() => { const [sh,sm] = log.time_start!.split(':').map(Number); const [eh,em] = log.time_end!.split(':').map(Number); const mins = (eh*60+em)-(sh*60+sm); return mins > 0 ? ` • ${mins} menit` : ''; })()}
-                                </p>
-                                {/* Apple Health Data Badges */}
-                                {(log.calories_burned || log.avg_bpm) && (
-                                  <div className="flex gap-2 mt-2">
-                                    {log.calories_burned && (
-                                      <span className="inline-flex items-center gap-1 bg-red-500/10 text-red-400 text-[12px] px-2 py-0.5 rounded-full border border-red-500/20">
-                                        <Flame className="w-3 h-3" /> {log.calories_burned} kcal
-                                      </span>
-                                    )}
-                                    {log.avg_bpm && (
-                                      <span className="inline-flex items-center gap-1 bg-rose-500/10 text-rose-400 text-[12px] px-2 py-0.5 rounded-full border border-rose-500/20">
-                                        <Activity className="w-3 h-3" /> {log.avg_bpm} bpm
-                                      </span>
-                                    )}
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-
-                            {/* Actions area with Inline confirmation */}
-                            <div className="flex items-center gap-2 self-end sm:self-start">
-                              {isConfirmingDelete ? (
-                                <div className="bg-red-950/40 border border-red-500/35 p-2 rounded-lg flex items-center gap-2 text-xs">
-                                  <span className="text-red-300 font-semibold font-sans">Yakin hapus?</span>
-                                  <button
-                                    onClick={() => handleDeleteWorkoutLog(log.id)}
-                                    className="bg-red-600 hover:bg-red-700 text-white font-bold px-2.5 py-1 rounded transition-colors"
-                                  >
-                                    Ya
-                                  </button>
-                                  <button
-                                    onClick={() => setDeleteLogId(null)}
-                                    className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-2.5 py-1 rounded transition-colors"
-                                  >
-                                    Batal
-                                  </button>
-                                </div>
-                              ) : (
-                                <div className="flex items-center gap-1.5">
-                                  <button
-                                    onClick={() => startEditLog(log)}
-                                    title="Ubah Sesi Latihan"
-                                    className="p-2 rounded bg-zinc-850 hover:bg-zinc-800 text-[#a6e6ff] hover:text-white transition-colors border border-zinc-800 flex items-center gap-1 text-xs font-semibold"
-                                  >
-                                    <Edit className="w-3.5 h-3.5" />
-                                    <span>Ubah</span>
-                                  </button>
-                                  <button
-                                    onClick={() => { 
-                                      const vol = calculateTotalVolume(log.exercises);
-                                      let dur = 0;
-                                      if (log.time_start && log.time_end) {
-                                        const [sh, sm] = log.time_start.split(':').map(Number);
-                                        const [eh, em] = log.time_end.split(':').map(Number);
-                                        dur = ((eh * 60 + em) - (sh * 60 + sm)) * 60;
-                                        if (dur < 0) dur = 0;
-                                      }
-                                      setShareData({ focus: log.focus, duration: dur, exercises: log.exercises, volume: vol }); setShowShare(true); 
-                                    }}
-                                    title="Share"
-                                    className="p-2 rounded bg-zinc-850 hover:bg-zinc-800 text-[#c3f400] hover:text-[#c3f400] transition-colors border border-zinc-800 flex items-center gap-1 text-xs font-semibold"
-                                  >
-                                    <Share2 className="w-3.5 h-3.5" />
-                                  </button>
-                                  <button
-                                    onClick={() => setDeleteLogId(log.id)}
-                                    title="Hapus Sesi Latihan"
-                                    className="p-2 rounded bg-zinc-850 hover:bg-red-950/80 text-red-400 hover:text-red-300 transition-colors border border-zinc-800 flex items-center gap-1 text-xs font-semibold"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                    <span>Hapus</span>
-                                  </button>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-
-                          {/* Exercise List & Equivalent detail */}
-                          <div className="border-t border-zinc-850 pt-3 flex flex-col md:flex-row md:items-center justify-between gap-3">
-                            <div className="flex flex-wrap gap-2">
-                              {log.exercises?.map((ex, idx) => (
-                                <div key={idx} className="bg-zinc-900 border border-zinc-800/60 rounded px-2.5 py-1 text-[12px] font-sans flex flex-col gap-0.5">
-                                  <span className="font-semibold text-white">{ex.name}</span>
-                                  <span className="text-zinc-400 text-[12px]">
-                                    {ex.is_cardio 
-                                      ? `⏱️ ${ex.duration_minutes || 30}m Kardio` 
-                                      : `${ex.sets}s x ${ex.reps} ${ex.weight_kg ? `@ ${ex.weight_kg}kg` : ""}`}
-                                  </span>
-                                </div>
-                              ))}
-                            </div>
-
-                            {/* Total volume diangkat */}
-                            {logVol > 0 && (
-                              <div className="bg-[#c3f400]/5 border border-[#c3f400]/25 rounded-lg p-2 max-w-full md:max-w-xs text-right shrink-0">
-                                <p className="font-mono text-[12px] text-[#c3f400] font-black uppercase tracking-wider">
-                                  🏋️‍♂️ Total Angkatan Sesi: {logVol} kg
-                                </p>
-                                <p className="font-sans text-[12px] text-[#c4c9ac] mt-0.5 leading-tight">
-                                  {getAnimalAnalogy(logVol)}
-                                </p>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                    {logs.length > 4 && (
-                      <button
-                        onClick={() => setShowFullHistory(true)}
-                        className="w-full mt-1 py-3 rounded-xl border border-zinc-800 bg-zinc-900/50 hover:bg-zinc-800/50 text-sm font-bold text-[#c3f400] flex items-center justify-center gap-2 transition-colors"
-                      >
-                        Lihat Semua Riwayat ({logs.length} sesi)
-                        <ArrowRight className="w-4 h-4" />
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
-            </motion.div>
+          {currentTab === 'dashboard' && activeProfile && (
+            <Dashboard 
+              activeProfile={activeProfile}
+              logs={logs}
+              calculateTotalVolume={calculateTotalVolume}
+              getAnimalAnalogy={getAnimalAnalogy}
+              getRecoveryStatus={getRecoveryStatus}
+              getPersonalRecords={getPersonalRecords}
+              setShowFullPRPage={setShowFullPRPage}
+              getAutoSchedule={getAutoSchedule}
+              DAYS={DAYS}
+              getAchievements={getAchievements}
+              isActivelyTraining={isActivelyTraining}
+              todayPlan={todayPlan}
+              workoutSessionLocation={workoutSessionLocation}
+              triggerStartWorkout={triggerStartWorkout}
+              setLoggerLocation={setLoggerLocation}
+              setCurrentTab={setCurrentTab}
+              generateWorkoutPlan={generateWorkoutPlan}
+              isGeneratingWorkoutPlan={isGeneratingWorkoutPlan}
+              workoutElapsed={workoutElapsed}
+              setIsActivelyTraining={setIsActivelyTraining}
+              setWorkoutStartTime={setWorkoutStartTime}
+              toggleExerciseCheck={toggleExerciseCheck}
+              completedExercises={completedExercises}
+              removeExerciseDuringWorkout={removeExerciseDuringWorkout}
+              setShowAddExerciseWorkout={setShowAddExerciseWorkout}
+              submitActiveWorkout={submitActiveWorkout}
+              isSavingLog={isSavingLog}
+              renderCalendar={renderCalendar}
+              latestRecomp={latestRecomp}
+              deleteLogId={deleteLogId}
+              setDeleteLogId={setDeleteLogId}
+              handleDeleteWorkoutLog={handleDeleteWorkoutLog}
+              startEditLog={startEditLog}
+              setShareData={setShareData}
+              setShowShare={setShowShare}
+              setShowFullHistory={setShowFullHistory}
+            />
           )}
 
           {currentTab === 'logger' && (
-            <motion.div 
-              key="logger"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.25 }}
-              className="space-y-6"
-            >
-              <div className="flex justify-between items-center">
-                <h2 className="font-display text-2xl font-extrabold text-white tracking-tight">Catat Sesi</h2>
-              </div>
-
-              {/* Form parameters */}
-              <div className="bg-[#201f1f] rounded-2xl p-4 border border-[#444933] space-y-4">
-                <div className="space-y-3">
-                  <div>
-                    <label className="block text-[12px] uppercase tracking-wide text-zinc-500 font-semibold mb-1">Tanggal</label>
-                    <input 
-                      type="date"
-                      value={loggerDate}
-                      onChange={(e) => setLoggerDate(e.target.value)}
-                      className="w-full max-w-[220px] bg-[#131313] border border-zinc-700 rounded-lg h-10 px-3 text-sm text-white focus:outline-none focus:border-[#c3f400]"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[12px] uppercase tracking-wide text-zinc-500 font-semibold mb-1">Waktu (opsional)</label>
-                    <div className="flex gap-2 items-center">
-                      <input type="time" value={loggerTimeStart} onChange={e => setLoggerTimeStart(e.target.value)}
-                        className="flex-1 bg-[#131313] border border-zinc-700 rounded-lg h-10 px-3 text-sm text-white focus:outline-none focus:border-[#c3f400]" />
-                      <span className="text-zinc-600 text-sm">–</span>
-                      <input type="time" value={loggerTimeEnd} onChange={e => setLoggerTimeEnd(e.target.value)}
-                        className="flex-1 bg-[#131313] border border-zinc-700 rounded-lg h-10 px-3 text-sm text-white focus:outline-none focus:border-[#c3f400]" />
-                    </div>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-[12px] uppercase tracking-wide text-zinc-500 font-semibold mb-1">Lokasi Gym</label>
-                    <input 
-                      type="text"
-                      placeholder="e.g. Muscle Prime Gym"
-                      value={loggerLocation}
-                      onChange={(e) => setLoggerLocation(e.target.value)}
-                      className="w-full bg-[#131313] border border-zinc-700 rounded-lg h-10 px-3 text-sm text-white focus:outline-none focus:border-[#c3f400]"
-                    />
-                  </div>
-
-                {/* Equipment Chips selectable */}
-                <div className="space-y-2">
-                  <label className="block text-xs uppercase tracking-widest text-[#c4c9ac] font-bold">Peralatan Tersedia</label>
-                  <div className="flex flex-wrap gap-2">
-                    {["Barbell", "Dumbbells", "Cable", "Machines", "Bodyweight"].map((item) => {
-                      const selected = loggerEquipment.includes(item);
-                      return (
-                        <button
-                          key={item}
-                          onClick={() => toggleLoggerEquipment(item)}
-                          className={`px-4 py-2 rounded-full text-xs font-semibold uppercase tracking-wider transition-all min-h-[40px] flex items-center border ${
-                            selected 
-                              ? "bg-[#a6e6ff] text-[#003543] border-transparent" 
-                              : "bg-zinc-800 text-[#c4c9ac] border-zinc-700 "
-                          }`}
-                        >
-                          {item}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Custom Target Training Focus Selector */}
-                <div className="space-y-2">
-                  <label className="block text-xs uppercase tracking-widest text-[#c4c9ac] font-bold">Target Fokus Sesi Latihan</label>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                    {[
-                      "Otomatis (Rekomendasi AI)",
-                      "Push Day", 
-                      "Pull Day", 
-                      "Legs Day", 
-                      "Upper Body", 
-                      "Lower Body", 
-                      "Full Body", 
-                      "Core"
-                    ].map((foc) => {
-                      const selected = loggerPlanFocus === foc;
-                      return (
-                        <button
-                          key={foc}
-                          type="button"
-                          onClick={() => setLoggerPlanFocus(foc)}
-                          className={`px-3 py-2 rounded-xl text-xs font-semibold tracking-tight transition-all min-h-[40px] flex items-center justify-center text-center border ${
-                            selected 
-                              ? "bg-[#c3f400] text-black border-transparent font-extrabold shadow-[0_2px_10px_rgba(195,244,0,0.15)]" 
-                              : "bg-zinc-900 text-zinc-300 border-zinc-800 hover:border-zinc-705"
-                          }`}
-                        >
-                          {foc}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* AI Plan Trigger */}
-                <div className="pt-2">
-                  <button 
-                    onClick={generateWorkoutPlan}
-                    disabled={isGeneratingWorkoutPlan}
-                    className="w-full bg-zinc-900 border border-zinc-800 hover:border-[#444933] text-[#c3f400] hover:text-[#c3f400]/80 font-display font-black py-3.5 px-4 rounded-xl flex items-center justify-center gap-1.5 transition-all text-sm scale-down active:scale-95 disabled:opacity-50"
-                  >
-                    {isGeneratingWorkoutPlan ? <RefreshCw className="w-4.5 h-4.5 animate-spin" /> : <Sparkles className="w-4.5 h-4.5" />}
-                    {isGeneratingWorkoutPlan ? "Generating Plan..." : "Generate Plan Baru"}
-                  </button>
-                </div>
-              </div>
-
-              {/* LIST EXERCISES ADDITION */}
-              <div className="bg-[#121212] rounded-xl p-5 border border-zinc-800 space-y-4">
-                <h3 className="font-display text-md font-bold text-white flex items-center justify-between">
-                  <span>Daftar Gerakan ({loggerExercises.length})</span>
-                  <span className="text-zinc-500 font-sans text-xs">Akan direkam ke logger</span>
-                </h3>
-
-                {/* Draft Exercises List */}
-                <div ref={exercisesListRef} className="space-y-3">
-                  {isGeneratingWorkoutPlan && loggerExercises.length === 0 && (
-                    <>
-                      {[1,2,3,4].map(i => (
-                        <div key={i} className="animate-pulse bg-zinc-900/50 rounded-xl h-20 border border-zinc-800/50" />
-                      ))}
-                    </>
-                  )}
-                  {loggerExercises.map((item, idx) => {
-                    const isInlineEditing = editingLoggerExIndex === idx;
-
-                    if (isInlineEditing) {
-                      return (
-                        <div key={idx} className="bg-[#181818] border border-[#c3f400]/40 p-4 rounded-lg space-y-3 text-left">
-                          <div className="flex justify-between items-center pb-2 border-b border-zinc-800">
-                            <span className="text-xs font-mono text-[#c3f400] font-black">UBAH GERAKAN #{idx + 1}</span>
-                            <span className="text-[12px] text-zinc-500">Manual Logger Draft</span>
-                          </div>
-
-                          {/* Exercise Types radio */}
-                          <div className="flex gap-4 text-xs font-bold">
-                            <label className="flex items-center gap-1.5 cursor-pointer text-white select-none">
-                              <input 
-                                type="radio" 
-                                checked={!inlineExIsCardio} 
-                                onChange={() => setInlineExIsCardio(false)} 
-                                className="text-[#c3f400] focus:ring-0"
-                              />
-                              Latihan Beban
-                            </label>
-                            <label className="flex items-center gap-1.5 cursor-pointer text-white select-none">
-                              <input 
-                                type="radio" 
-                                checked={inlineExIsCardio} 
-                                onChange={() => setInlineExIsCardio(true)} 
-                                className="text-[#c3f400] focus:ring-0"
-                              />
-                              Kardio
-                            </label>
-                          </div>
-
-                          {/* Inputs */}
-                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                            <div className="sm:col-span-1">
-                              <label className="block text-[12px] text-zinc-400 font-bold mb-1 uppercase">Nama Gerakan</label>
-                              <div className="relative">
-                                <input 
-                                  type="text"
-                                  value={inlineExName}
-                                  onChange={(e) => setInlineExName(e.target.value)}
-                                  className="w-full bg-[#111] border border-zinc-700 rounded h-8 px-2 text-xs text-white"
-                                />
-                                {inlineExName.trim().length > 0 && !EXERCISE_DB.some(e => e.name === inlineExName) && (
-                                  <div className="absolute top-full left-0 right-0 mt-1 bg-[#1a1a1a] border border-zinc-800 rounded-lg max-h-36 overflow-y-auto z-20 shadow-lg">
-                                    {searchExercises(inlineExName).slice(0, 5).map(ex => (
-                                      <button key={ex.name} type="button" onMouseDown={(e) => { e.preventDefault(); setInlineExName(ex.name); setInlineExIsCardio(ex.category === 'cardio'); }}
-                                        className="w-full px-2.5 py-1.5 hover:bg-zinc-800 text-left text-xs text-white">{ex.name}</button>
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-
-                            {inlineExIsCardio ? (
-                              <div>
-                                <label className="block text-[12px] text-zinc-400 font-bold mb-1 uppercase">Durasi (Menit)</label>
-                                <input 
-                                  type="number"
-                                  value={inlineExDuration}
-                                  onChange={(e) => setInlineExDuration(e.target.value)}
-                                  className="w-full bg-[#111] border border-zinc-700 rounded h-8 px-2 text-xs text-white"
-                                />
-                              </div>
-                            ) : (
-                              <div className="grid grid-cols-3 gap-1 col-span-1">
-                                <div>
-                                  <label className="block text-[12px] text-zinc-400 font-bold mb-1 uppercase text-center">Sets</label>
-                                  <input 
-                                    type="number"
-                                    value={inlineExSets}
-                                    onChange={(e) => setInlineExSets(e.target.value)}
-                                    className="w-full bg-[#111] border border-zinc-700 rounded h-8 text-center text-xs text-white"
-                                  />
-                                </div>
-                                <div>
-                                  <label className="block text-[12px] text-zinc-400 font-bold mb-1 uppercase text-center">Reps</label>
-                                  <input 
-                                    type="text"
-                                    value={inlineExReps}
-                                    onChange={(e) => setInlineExReps(e.target.value)}
-                                    className="w-full bg-[#111] border border-zinc-700 rounded h-8 text-center text-xs text-white"
-                                  />
-                                </div>
-                                <div>
-                                  <label className="block text-[12px] text-zinc-400 font-bold mb-1 uppercase text-center">Beban kg</label>
-                                  <input 
-                                    type="number"
-                                    value={inlineExWeight}
-                                    onChange={(e) => setInlineExWeight(e.target.value)}
-                                    className="w-full bg-[#111] border border-zinc-700 rounded h-8 text-center text-xs text-[#c3f400]"
-                                  />
-                                </div>
-                              </div>
-                            )}
-
-                            <div className="sm:col-span-1">
-                              <label className="block text-[12px] text-zinc-400 font-bold mb-1 uppercase">Catatan / Note</label>
-                              <input 
-                                type="text"
-                                value={inlineExNotes}
-                                onChange={(e) => setInlineExNotes(e.target.value)}
-                                className="w-full bg-[#111] border border-zinc-700 rounded h-8 px-2 text-xs text-white"
-                              />
-                            </div>
-                          </div>
-
-                          <div className="flex justify-end gap-2 pt-1">
-                            <button
-                              onClick={() => setEditingLoggerExIndex(null)}
-                              className="bg-zinc-805 hover:bg-zinc-750 text-zinc-300 text-[12px] font-bold px-3 py-1.5 rounded transition-all"
-                            >
-                              Batal
-                            </button>
-                            <button
-                              onClick={() => saveInlineEditLoggerEx(idx)}
-                              className="bg-[#c3f400] hover:bg-[#abd600] text-black text-[12px] font-extrabold px-4 py-1.5 rounded transition-all"
-                            >
-                              Simpan
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    }
-
-                    return (
-                      <div key={idx} className="bg-zinc-900 border border-zinc-800/80 p-4 rounded-lg flex justify-between items-start gap-2 text-left">
-                        <div className="flex items-start gap-2">
-                          <MuscleIcon name={item.name} size={36} />
-                          <div>
-                            <h4 className="font-display font-bold text-white text-md">{item.name}</h4>
-                            <p className="font-sans text-xs text-[#c4c9ac] mt-1 flex flex-wrap items-center gap-2">
-                              {item.is_cardio ? (
-                                <span className="bg-blue-900/40 text-blue-300 border border-blue-800/60 px-1.5 py-0.5 rounded text-[12px] font-bold">
-                                  Kardio {item.duration_minutes || 30} Menit
-                                </span>
-                              ) : (
-                                <span>
-                                  <strong>{item.sets} Sets</strong> x <strong>{item.reps} Reps</strong>
-                                  {item.weight_kg && <strong> @ {item.weight_kg} kg</strong>}
-                                </span>
-                              )}
-                            </p>
-                            {item.notes && <p className="font-mono text-[12px] text-[#a6e6ff] mt-0.5 italic">Note: {item.notes}</p>}
-                            <div className="flex gap-2 mt-1.5">
-                              <a
-                                href={`https://www.youtube.com/results?search_query=how+to+${encodeURIComponent(item.name)}+form+tutorial`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1 text-[12px] font-bold text-red-400 hover:text-red-300 transition-colors"
-                              >
-                                <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor"><path d="M23.5 6.2a3 3 0 0 0-2.1-2.1C19.5 3.5 12 3.5 12 3.5s-7.5 0-9.4.6A3 3 0 0 0 .5 6.2 31.9 31.9 0 0 0 0 12a31.9 31.9 0 0 0 .5 5.8 3 3 0 0 0 2.1 2.1c1.9.6 9.4.6 9.4.6s7.5 0 9.4-.6a3 3 0 0 0 2.1-2.1c.4-1.9.5-5.8.5-5.8s0-3.9-.5-5.8ZM9.5 15.6V8.4l6.3 3.6-6.3 3.6Z"/></svg>
-                                YouTube
-                              </a>
-                              <a
-                                href={`https://www.google.com/search?q=${encodeURIComponent(item.name + ' exercise form guide')}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1 text-[12px] font-bold text-blue-400 hover:text-blue-300 transition-colors"
-                              >
-                                <Compass className="w-3 h-3" />
-                                Google
-                              </a>
-                            </div>
-                          </div>
-                        </div>
-                        
-                        {/* Control buttons for reordering & editing & deletion */}
-                        <div className="flex items-center gap-1 shrink-0">
-                          {/* Move Up */}
-                          <button
-                            onClick={() => moveLoggerExercise(idx, 'up')}
-                            disabled={idx === 0}
-                            title="Pindah Ke Atas"
-                            className="bg-zinc-850 hover:bg-zinc-800 text-zinc-400 hover:text-[#c3f400] disabled:opacity-30 disabled:hover:text-zinc-400 p-1.5 rounded transition-colors border border-zinc-800/80"
-                          >
-                            <ArrowUp className="w-3.5 h-3.5" />
-                          </button>
-
-                          {/* Move Down */}
-                          <button
-                            onClick={() => moveLoggerExercise(idx, 'down')}
-                            disabled={idx === loggerExercises.length - 1}
-                            title="Pindah Ke Bawah"
-                            className="bg-zinc-850 hover:bg-zinc-800 text-zinc-400 hover:text-[#c3f400] disabled:opacity-30 disabled:hover:text-zinc-400 p-1.5 rounded transition-colors border border-zinc-800/80"
-                          >
-                            <ArrowDown className="w-3.5 h-3.5" />
-                          </button>
-
-                          {/* Inline Edit Trigger */}
-                          <button
-                            onClick={() => startInlineEditLoggerEx(idx, item)}
-                            title="Sunting Latihan"
-                            className="bg-zinc-850 hover:bg-zinc-800 text-zinc-450 hover:text-white p-1.5 rounded transition-colors border border-zinc-800/80"
-                          >
-                            <Edit className="w-3.5 h-3.5" />
-                          </button>
-
-                          {/* Delete */}
-                          <button 
-                            onClick={() => setLoggerExercises(prev => prev.filter((_, i) => i !== idx))}
-                            title="Hapus"
-                            className="bg-zinc-850 hover:bg-red-950 text-zinc-450 hover:text-red-450 p-1.5 rounded transition-colors border border-zinc-800/80"
-                          >
-                            <X className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {/* Manual Adder Inline Frame */}
-                <div className="border-t border-zinc-800 pt-4 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-[#c4c9ac] uppercase">Tambah Gerakan</span>
-                    <button onClick={() => setShowExSearch(true)} className="text-[12px] text-[#c3f400] font-bold flex items-center gap-1">
-                      <Plus className="w-3.5 h-3.5" /> Cari Exercise
-                    </button>
-                  </div>
-                  
-                  {/* Cardio or Strength toggle */}
-                  <div className="flex items-center gap-4 text-xs font-bold">
-                    <label className="flex items-center gap-2 cursor-pointer text-white select-none">
-                      <input 
-                        type="radio"
-                        checked={!customExerciseIsCardio}
-                        onChange={() => setCustomExerciseIsCardio(false)}
-                        className="text-[#c3f400] focus:ring-0"
-                      />
-                      Latihan Beban (Strength)
-                    </label>
-                    <label className="flex items-center gap-2 cursor-pointer text-white select-none">
-                      <input 
-                        type="radio"
-                        checked={customExerciseIsCardio}
-                        onChange={() => setCustomExerciseIsCardio(true)}
-                        className="text-[#c3f400] focus:ring-0"
-                      />
-                      Kardio (e.g. Treadmill)
-                    </label>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                    <div className="relative w-full sm:col-span-1">
-                      <input 
-                        type="text"
-                        placeholder="Cari atau ketik gerakan..."
-                        value={customExerciseName}
-                        onChange={(e) => setCustomExerciseName(e.target.value)}
-                        className="w-full bg-[#201f1f] border border-zinc-700/80 rounded h-10 px-2.5 text-xs text-white"
-                      />
-                      {customExerciseName.trim().length > 0 && !EXERCISE_DB.some(e => e.name === customExerciseName) && (
-                        <div className="absolute top-full left-0 right-0 mt-1 bg-[#1a1a1a] border border-zinc-800 rounded-xl max-h-48 overflow-y-auto z-20 shadow-lg">
-                          {searchExercises(customExerciseName).slice(0, 6).map(ex => (
-                            <button key={ex.name} type="button" onMouseDown={(e) => { e.preventDefault(); setCustomExerciseName(ex.name); setCustomExerciseIsCardio(ex.category === 'cardio'); }}
-                              className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-zinc-800 transition-colors text-left">
-                              <MuscleIcon name={ex.name} size={32} />
-                              <div>
-                                <span className="text-xs font-medium text-white block">{ex.name}</span>
-                                <span className="text-[12px] text-zinc-500">{ex.muscle}</span>
-                              </div>
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                    
-                    {customExerciseIsCardio ? (
-                      <input 
-                        type="number"
-                        placeholder="Durasi (e.g. 30 Menit)"
-                        value={customExerciseDuration}
-                        onChange={(e) => setCustomExerciseDuration(e.target.value)}
-                        className="w-full bg-[#201f1f] border border-zinc-700/80 rounded h-10 px-2.5 text-xs text-white"
-                      />
-                    ) : (
-                      <div className="grid grid-cols-3 gap-1.5 sm:col-span-1">
-                        <input 
-                          type="number"
-                          placeholder="Sets"
-                          value={customExerciseSets}
-                          onChange={(e) => setCustomExerciseSets(e.target.value)}
-                          className="w-full bg-[#201f1f] border border-zinc-700/80 rounded h-10 px-2.5 text-xs text-white"
-                        />
-                        <input 
-                          type="text"
-                          placeholder="Reps"
-                          value={customExerciseReps}
-                          onChange={(e) => setCustomExerciseReps(e.target.value)}
-                          className="w-full bg-[#201f1f] border border-zinc-700/80 rounded h-10 px-2.5 text-xs text-white"
-                        />
-                        <input 
-                          type="number"
-                          placeholder="Beban kg"
-                          value={customExerciseWeight}
-                          onChange={(e) => setCustomExerciseWeight(e.target.value)}
-                          className="w-full bg-[#201f1f] border border-zinc-700/80 rounded h-10 px-2.5 text-xs text-[#c3f400]"
-                        />
-                      </div>
-                    )}
-
-                    <input 
-                      type="text"
-                      placeholder="Catatan / Notes (e.g. Fokus napas)"
-                      value={customExerciseNotes}
-                      onChange={(e) => setCustomExerciseNotes(e.target.value)}
-                      className="w-full sm:col-span-1 bg-[#201f1f] border border-zinc-700/80 rounded h-10 px-2.5 text-xs text-white"
-                    />
-                  </div>
-                  
-                  <button 
-                    onClick={handleAddCustomExercise}
-                    className="font-sans text-xs font-black bg-zinc-800 hover:bg-zinc-700 hover:text-white text-[#c3f400] h-10 px-4 rounded w-full flex items-center justify-center gap-1 border border-zinc-700"
-                  >
-                    <Plus className="w-4.5 h-4.5" /> Tambah Gerakan Ke Draft List
-                  </button>
-                </div>
-              </div>
-
-              {/* Workout Templates */}
-              {activeProfile && (
-                <WorkoutTemplates
-                  profileId={activeProfile.id}
-                  onApply={applyTemplate}
-                  currentFocus={todayPlan?.focus}
-                  currentExercises={loggerExercises}
-                />
-              )}
-
-              {/* SAVE FINISHED DATA TRIGGER */}
-              {formError && currentTab === 'logger' && <p className="field-error-msg text-center">{formError}</p>}
-              <button 
-                onClick={handleSaveWorkoutLog}
-                disabled={loggerExercises.length === 0 || isSavingLog}
-                className="w-full bg-[#c3f400] text-black font-display font-black py-4 px-4 rounded-xl flex items-center justify-center gap-2 transition-all text-md shadow-[0_4px_15px_rgba(195,244,0,0.2)] disabled:opacity-50"
-              >
-                <CheckCircle2 className="w-5 h-5 fill-black/10" />
-                {isSavingLog ? "Menyimpan..." : "Simpan Workout"}
-              </button>
-            </motion.div>
+            <WorkoutLogger 
+              activeProfile={activeProfile}
+              loggerDate={loggerDate}
+              setLoggerDate={setLoggerDate}
+              loggerTimeStart={loggerTimeStart}
+              setLoggerTimeStart={setLoggerTimeStart}
+              loggerTimeEnd={loggerTimeEnd}
+              setLoggerTimeEnd={setLoggerTimeEnd}
+              loggerLocation={loggerLocation}
+              setLoggerLocation={setLoggerLocation}
+              loggerEquipment={loggerEquipment}
+              toggleLoggerEquipment={toggleLoggerEquipment}
+              loggerPlanFocus={loggerPlanFocus}
+              setLoggerPlanFocus={setLoggerPlanFocus}
+              generateWorkoutPlan={generateWorkoutPlan}
+              isGeneratingWorkoutPlan={isGeneratingWorkoutPlan}
+              loggerExercises={loggerExercises}
+              setLoggerExercises={setLoggerExercises}
+              exercisesListRef={exercisesListRef}
+              editingLoggerExIndex={editingLoggerExIndex}
+              setEditingLoggerExIndex={setEditingLoggerExIndex}
+              inlineExIsCardio={inlineExIsCardio}
+              setInlineExIsCardio={setInlineExIsCardio}
+              inlineExName={inlineExName}
+              setInlineExName={setInlineExName}
+              inlineExDuration={inlineExDuration}
+              setInlineExDuration={setInlineExDuration}
+              inlineExSets={inlineExSets}
+              setInlineExSets={setInlineExSets}
+              inlineExReps={inlineExReps}
+              setInlineExReps={setInlineExReps}
+              inlineExWeight={inlineExWeight}
+              setInlineExWeight={setInlineExWeight}
+              inlineExNotes={inlineExNotes}
+              setInlineExNotes={setInlineExNotes}
+              saveInlineEditLoggerEx={saveInlineEditLoggerEx}
+              startInlineEditLoggerEx={startInlineEditLoggerEx}
+              moveLoggerExercise={moveLoggerExercise}
+              customExerciseIsCardio={customExerciseIsCardio}
+              setCustomExerciseIsCardio={setCustomExerciseIsCardio}
+              customExerciseName={customExerciseName}
+              setCustomExerciseName={setCustomExerciseName}
+              customExerciseDuration={customExerciseDuration}
+              setCustomExerciseDuration={setCustomExerciseDuration}
+              customExerciseSets={customExerciseSets}
+              setCustomExerciseSets={setCustomExerciseSets}
+              customExerciseReps={customExerciseReps}
+              setCustomExerciseReps={setCustomExerciseReps}
+              customExerciseWeight={customExerciseWeight}
+              setCustomExerciseWeight={setCustomExerciseWeight}
+              customExerciseNotes={customExerciseNotes}
+              setCustomExerciseNotes={setCustomExerciseNotes}
+              handleAddCustomExercise={handleAddCustomExercise}
+              setShowExSearch={setShowExSearch}
+              applyTemplate={applyTemplate}
+              todayPlan={todayPlan}
+              formError={formError}
+              currentTab={currentTab}
+              isSavingLog={isSavingLog}
+              handleSaveWorkoutLog={handleSaveWorkoutLog}
+            />
           )}
 
-          {currentTab === 'progress' && (
-            <motion.div 
-              key="progress"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.25 }}
-              className="space-y-6"
-            >
-              <div className="flex justify-between items-center">
-                <h2 className="font-display text-2xl font-extrabold text-white tracking-tight">Progress & Recomp</h2>
-                <button onClick={exportPDF} className="text-[12px] font-bold text-[#c3f400] flex items-center gap-1 px-3 py-1.5 rounded-lg border border-[#c3f400]/30 hover:bg-[#c3f400]/10 transition-colors">
-                  <Download className="w-3.5 h-3.5" /> PDF
-                </button>
-              </div>
-
-              {/* ACTIVE AI RECOMPOSITION MATRIX INSIGHT CARD */}
-              <div className="bg-[#201f1f] rounded-2xl p-6 border border-[#c3f400] shadow-md relative overflow-hidden ai-glow">
-                <div className="absolute -right-8 -top-8 w-28 h-28 bg-[#c3f400]/10 rounded-full blur-2xl"></div>
-
-                <div className="flex items-start gap-4 mb-5">
-                  <div className="w-12 h-12 rounded-full bg-[#c3f400]/25 text-[#c3f400] border border-[#c3f400]/30 flex items-center justify-center shrink-0">
-                    <Sparkles className="w-6 h-6 fill-[#c3f400]" />
-                  </div>
-                  <div>
-                    <span className="font-sans text-[12px] uppercase font-semibold tracking-wide text-zinc-500">Analisa Tubuh</span>
-                    <h3 className="font-display text-lg font-bold text-white mt-0.5">Rekomposisi Tubuh</h3>
-                    
-                    <p className="font-sans text-sm text-[#c4c9ac] leading-relaxed mt-2">
-                      {latestRecomp ? latestRecomp.analysis : "Input tinggi dan berat badan untuk mendapatkan analisa komposisi tubuh, target kalori harian, dan kebutuhan proteinmu."}
-                    </p>
-                  </div>
-                </div>
-
-                {latestRecomp && (
-                  <div className="grid grid-cols-3 gap-2 border-t border-zinc-800/80 pt-4 mt-2">
-                    <div className="bg-[#131313] p-3 rounded-xl border border-zinc-800 text-center overflow-hidden">
-                      <span className="text-[12px] text-[#c4c9ac] font-bold uppercase block tracking-wider">Strategi</span>
-                      <span className="text-[12px] font-bold font-display text-[#c3f400] block mt-1 truncate">{latestRecomp.focus_type}</span>
-                    </div>
-                    <div className="bg-[#131313] p-3 rounded-xl border border-zinc-800 text-center">
-                      <span className="text-[12px] text-[#c4c9ac] font-bold uppercase block tracking-wider">Target Kalori</span>
-                      <span className="text-sm font-extrabold font-display text-white block mt-1">{latestRecomp.calories} Kcal</span>
-                    </div>
-                    <div className="bg-[#131313] p-3 rounded-xl border border-zinc-800 text-center">
-                      <span className="text-[12px] text-[#c4c9ac] font-bold uppercase block tracking-wider">Target Protein</span>
-                      <span className="text-sm font-extrabold font-display text-[#a6e6ff] block mt-1">{latestRecomp.protein} gram</span>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* BODY METRICS INPUT BLOCK */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Metrics Logger Form */}
-                <div className="bg-[#121212] p-5 rounded-xl border border-zinc-800">
-                  <h3 className="font-display text-lg font-bold text-white mb-4 flex items-center gap-2">
-                    <Scale className="w-5 h-5 text-[#c3f400]" />
-                    Catat Metrik Tinggi/Berat
-                  </h3>
-
-                  <form onSubmit={handleLogMetrics} className="space-y-4">
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-[12px] font-bold uppercase tracking-widest text-[#c4c9ac] mb-1">Tinggi Badan (cm)</label>
-                        <input 
-                          type="number"
-                          placeholder="e.g. 182"
-                          value={tbInput}
-                          onChange={(e) => setTbInput(e.target.value)}
-                          className="w-full bg-[#201f1f] border-none text-white font-display text-md rounded-lg h-11 px-3 focus:ring-1 focus:ring-[#c3f400] transition-shadow"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[12px] font-bold uppercase tracking-widest text-[#c4c9ac] mb-1">Berat Badan (kg)</label>
-                        <input 
-                          type="number" 
-                          step="0.1"
-                          placeholder="e.g. 84.5"
-                          value={bbInput}
-                          onChange={(e) => setBbInput(e.target.value)}
-                          className="w-full bg-[#201f1f] border-none text-white font-display text-md rounded-lg h-11 px-3 focus:ring-1 focus:ring-[#c3f400] transition-shadow"
-                        />
-                      </div>
-                    </div>
-
-                    <button 
-                      type="submit"
-                      disabled={isSubmittingRecomp}
-                      className="w-full bg-[#c3f400] text-black font-display font-black uppercase text-xs tracking-wider rounded-lg h-11 flex items-center justify-center gap-1.5 hover:opacity-90 transition-all disabled:opacity-50"
-                    >
-                      <Sparkles className="w-4 h-4 fill-black" />
-                      {isSubmittingRecomp ? "Menganalisis..." : "Analisa Komposisi"}
-                    </button>
-                  </form>
-                </div>
-
-                {/* BMI Gauge summary panel */}
-                <div className="bg-[#121212] p-5 rounded-xl border border-zinc-800 flex flex-col justify-between min-h-[170px]" id="bmi-display-panel">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-display text-lg font-bold text-white">Current BMI</h3>
-                    <div className="p-2 bg-zinc-900 rounded-full text-zinc-400">
-                      <Flame className="w-4.5 h-4.5" />
-                    </div>
-                  </div>
-
-                  <div className="flex items-baseline gap-2 mt-4">
-                    <span className="font-display text-5xl font-black text-white">{computedBmiVal}</span>
-                    <span className="font-sans text-xs text-[#c4c9ac] block">kg/m²</span>
-                  </div>
-
-                  <p className="font-sans text-xs text-[#c3f400] uppercase font-bold tracking-widest border border-[#c3f400]/25 bg-[#c3f400]/5 px-2.5 py-1.5 rounded-lg inline-block w-fit mt-3">
-                    {getBmiStatus(computedBmiVal)}
-                  </p>
-
-                  {/* Horizontal BMI status scale bar placeholder */}
-                  <div className="w-full h-1 bg-zinc-800 rounded-full mt-4 overflow-hidden flex">
-                    <div className="h-full bg-blue-600/50 w-[18.5%]"></div>
-                    <div className="h-full bg-emerald-500 w-[25.5%]"></div>
-                    <div className="h-full bg-orange-400 w-[15.5%] relative">
-                      <div className="absolute right-0 top-1/2 -translate-y-1/2 w-2.5 h-2.5 bg-white border border-black rounded-full"></div>
-                    </div>
-                    <div className="h-full bg-red-600 w-[40.5%]"></div>
-                  </div>
-                </div>
-              </div>
-
-              {/* ELEVATED WEIGHT HISTORY TRAJECTORY (CSS BAR CHART) */}
-              <div className="bg-[#121212] rounded-xl p-5 border border-zinc-800">
-                <div className="flex items-center justify-between mb-6">
-                  <h3 className="font-display text-lg font-bold text-white flex items-center gap-2">
-                    <TrendingUp className="w-5 h-5 text-[#a6e6ff]" />
-                    Weight Trajectory
-                  </h3>
-                  <span className="text-[12px] uppercase font-bold tracking-wider text-zinc-500 font-mono">Last 3 Readings</span>
-                </div>
-
-                {/* Grid Visual Histogram */}
-                <div className="h-44 flex items-end justify-between w-full pt-6 pb-2 border-b border-zinc-800 relative">
-                  {/* Grid Lines */}
-                  <div className="absolute w-full h-[1px] bg-zinc-800/80 top-1/2 -translate-y-1/2 border-dashed"></div>
-                  
-                  {/* Standard Static readings representing target timeline progress bars */}
-                  <div className="w-full mx-2 bg-zinc-800 rounded-t-md h-[78%] relative group transition-colors hover:bg-zinc-700">
-                    <div className="absolute -top-7 left-1/2 -translate-x-1/2 font-display text-[12px] text-zinc-400 font-bold">85kg</div>
-                    <span className="absolute -bottom-7 left-1/2 -translate-x-1/2 font-sans text-[12px] text-zinc-500 font-bold uppercase tracking-wider block">Wk 1</span>
-                  </div>
-
-                  <div className="w-full mx-2 bg-zinc-800 rounded-t-md h-[81%] relative group transition-colors hover:bg-zinc-700">
-                    <div className="absolute -top-7 left-1/2 -translate-x-1/2 font-display text-[12px] text-zinc-400 font-bold">85.4kg</div>
-                    <span className="absolute -bottom-7 left-1/2 -translate-x-1/2 font-sans text-[12px] text-zinc-500 font-bold uppercase tracking-wider block">Wk 2</span>
-                  </div>
-
-                  {/* Active Weight Reading Glow */}
-                  <div className="w-full mx-2 bg-[#c3f400]/20 rounded-t-md h-[84%] border-t-2 border-[#c3f400] relative group">
-                    <div className="absolute w-full h-4 top-0 bg-[#c3f400]/20 blur-sm"></div>
-                    <div className="absolute -top-7 left-1/2 -translate-x-1/2 font-display text-[12px] text-[#c3f400] font-extrabold">{activeProfile?.weight || "72.0"}kg</div>
-                    <span className="absolute -bottom-7 left-1/2 -translate-x-1/2 font-sans text-[12px] text-[#c3f400] font-extrabold uppercase tracking-wider block">Real</span>
-                  </div>
-                </div>
-
-                {/* Margin spacer */}
-                <div className="h-6"></div>
-              </div>
-
-              {/* Weight History Chart */}
-              {activeProfile && <WeightChart profileId={activeProfile.id} />}
-
-              {/* Progressive Overload Tracking */}
-              <ProgressiveOverload logs={logs} />
-
-              {/* Goal Setting */}
-              {activeProfile && <GoalSetting profileId={activeProfile.id} currentWeight={activeProfile.weight} totalSessions={activeProfile.total_sessions} />}
-
-              {/* CSV Export */}
-              <button onClick={handleExportCSV}
-                className="w-full bg-zinc-900 dark-card border border-zinc-800 dark-border text-zinc-300 dark-text font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-2 text-sm hover:bg-zinc-800 transition-colors">
-                <Download className="w-4 h-4 text-[#a6e6ff]" /> Export Data ke CSV
-              </button>
-            </motion.div>
+          {currentTab === 'progress' && activeProfile && (
+            <ProgressView 
+              activeProfile={activeProfile}
+              logs={logs}
+              latestRecomp={latestRecomp}
+              tbInput={tbInput}
+              bbInput={bbInput}
+              setTbInput={setTbInput}
+              setBbInput={setBbInput}
+              isSubmittingRecomp={isSubmittingRecomp}
+              onLogMetrics={handleLogMetrics}
+              onExportPDF={exportPDF}
+              onExportCSV={handleExportCSV}
+              computedBmiVal={computedBmiVal}
+              getBmiStatus={getBmiStatus}
+            />
           )}
 
-          {currentTab === 'chat' && (
-            <motion.div 
-              key="chat"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.25 }}
-              className="flex-1 flex flex-col min-h-[450px] relative"
-            >
-              <div className="bg-[#121212] rounded-t-2xl border border-zinc-800 border-b-0 p-4 shrink-0 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="w-3.5 h-3.5 rounded-full bg-[#c3f400] animate-pulse"></div>
-                  <span className="font-display font-bold text-sm text-white tracking-tight">Chat Trainer</span>
-                </div>
-                <button onClick={clearChat} aria-label="Hapus semua chat" className="text-[12px] font-medium text-zinc-500 hover:text-red-400 transition-colors flex items-center gap-1">
-                  <Trash2 className="w-3 h-3" /> Clear
-                </button>
-              </div>
-
-              {/* Chat Thread Panel */}
-              <div className="flex-1 bg-[#201f1f]/50 border border-zinc-850 overflow-y-auto p-4 space-y-4 no-scrollbar flex flex-col">
-                <div className="text-center text-[12px] text-zinc-600 my-2">Hari ini</div>
-
-                {/* Default Greeting Message block */}
-                <div className="flex justify-start w-full gap-2.5">
-                  <div className="w-7 h-7 rounded-full bg-[#c2f400] flex-shrink-0 flex items-center justify-center text-black">
-                    <Zap className="w-4 h-4 fill-black" />
-                  </div>
-                  <div className="max-w-[85%] bg-zinc-900 border border-zinc-800 text-[#e5e2e1] font-sans text-sm rounded-2xl rounded-tl-sm p-4 leading-relaxed relative ai-glow">
-                    Halo, <strong>{activeProfile.name}!</strong> 💪 
-                    Ada yang bisa dibantu soal program latihan, nutrisi, atau form exercise hari ini?
-                  </div>
-                </div>
-
-                {/* Chat items maps */}
-                {chatHistory.map((msg) => (
-                  <div 
-                    key={msg.id || Math.random().toString()} 
-                    className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'} w-full gap-2.5`}
-                  >
-                    {msg.sender === 'assistant' && (
-                      <div className="w-7 h-7 rounded-full bg-[#a6e6ff] flex-shrink-0 flex items-center justify-center text-zinc-900">
-                        <Zap className="w-4 h-4 fill-zinc-900" />
-                      </div>
-                    )}
-                    <div 
-                      className={`max-w-[85%] text-sm rounded-2xl p-4 leading-relaxed relative ${
-                        msg.sender === 'user' 
-                          ? "bg-zinc-800 text-white border border-zinc-700 rounded-tr-sm self-end"
-                          : "bg-zinc-900 border border-zinc-800 text-[#e5e2e1] rounded-tl-sm ai-glow"
-                      }`}
-                    >
-                      {msg.sender === 'assistant' && (
-                        <div className="absolute top-0 left-0 w-full h-[1px] bg-[#c3f400]/20 rounded-t-2xl"></div>
-                      )}
-                      
-                      {/* Message formatted string simply */}
-                      {renderFormattedMessage(msg.message)}
-                    </div>
-                  </div>
-                ))}
-                
-                {isSendingChat && (
-                  <div className="flex justify-start w-full gap-2.5 items-center">
-                    <div className="w-7 h-7 rounded-full bg-[#a6e6ff] flex-shrink-0 flex items-center justify-center text-zinc-900 animate-spin">
-                      <RefreshCw className="w-3.5 h-3.5" />
-                    </div>
-                    <span className="text-xs font-sans text-zinc-500 italic">Mengetik...</span>
-                  </div>
-                )}
-
-                <div ref={chatBottomRef} />
-              </div>
-
-              {/* CHAT INPUT AND KEYWORDS SUGGESTIONS CHIPS FOOTER */}
-              <div className="bg-[#121212] border border-zinc-800 p-4 rounded-b-2xl space-y-4 shrink-0">
-                
-                {/* Suggestions triggers chips */}
-                {chatHistory.length === 0 && (
-                  <div className="space-y-1.5 pt-1">
-                    <span className="text-[12px] text-zinc-500 uppercase tracking-wider font-bold block">Topik Populer:</span>
-                    <div className="flex flex-wrap gap-2">
-                      {chatPrompts.map((prompt) => (
-                        <button
-                          key={prompt}
-                          onClick={() => handleSendChat(prompt)}
-                          className="px-3 py-1.5 rounded-lg border border-zinc-800 bg-zinc-900/80 hover:bg-[#201f1f] text-xs font-medium text-zinc-300 hover:text-[#c3f400] transition-colors"
-                        >
-                          {prompt}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Input action field */}
-                <div className="flex items-center gap-2 bg-[#131313] rounded-xl border border-zinc-800 p-1.5 focus-within:border-[#c3f400] transition-all">
-                  <input 
-                    type="text"
-                    placeholder="Tanya Trainer AI..."
-                    value={chatInput}
-                    onChange={(e) => setChatInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') handleSendChat();
-                    }}
-                    className="w-full bg-transparent border-none text-white font-sans text-sm outline-none px-3 h-10 placeholder-zinc-500 focus:outline-none focus:ring-0"
-                  />
-                  <button 
-                    onClick={() => handleSendChat()}
-                    disabled={isSendingChat || !chatInput.trim()}
-                    className="bg-[#c3f400] hover:bg-[#abd600] text-black h-10 w-10 shrink-0 rounded-lg flex items-center justify-center scale-down active:scale-95 transition-transform disabled:opacity-50 shadow-[0_0_12px_rgba(195,244,0,0.2)]"
-                  >
-                    <ArrowRight className="w-5 h-5 font-black" />
-                  </button>
-                </div>
-              </div>
-            </motion.div>
+          {currentTab === 'chat' && activeProfile && (
+            <AIChat 
+              activeProfile={activeProfile}
+              chatHistory={chatHistory}
+              isSendingChat={isSendingChat}
+              onSendMessage={handleSendChat}
+              onClearChat={clearChat}
+            />
           )}
 
           {currentTab === 'scanner' && (
-            <motion.div 
-              key="scanner"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.25 }}
-              className="space-y-6"
-            >
-              <div className="flex justify-between items-center">
-                <h2 className="font-display text-2xl font-extrabold text-white tracking-tight">Scanner Alat Gym</h2>
-              </div>
-
-              <p className="text-sm text-zinc-400 leading-relaxed">
-                Foto alat gym yang ingin kamu ketahui. Kami akan identifikasi nama, target otot, dan cara pakainya.
-              </p>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
-                {/* Visual Image Input Area with Drag & Drop and manual select */}
-                <div 
-                  onDragOver={(e) => {
-                    e.preventDefault();
-                    setIsDragOver(true);
-                  }}
-                  onDragLeave={() => setIsDragOver(false)}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    setIsDragOver(false);
-                    const file = e.dataTransfer.files?.[0];
-                    if (file) {
-                      readAndPreviewFile(file);
-                    }
-                  }}
-                  className={`bg-[#201f1f] rounded-2xl border-2 border-dashed p-6 flex flex-col items-center justify-center min-h-[340px] text-center transition-all relative ${
-                    isDragOver ? "border-[#c3f400] bg-[#c3f400]/5" : "border-zinc-805 hover:border-zinc-700"
-                  }`}
-                >
-                  {scannerImage ? (
-                    <div className="w-full h-full flex flex-col justify-between items-center space-y-4">
-                      <div className="relative max-h-[220px] rounded-lg overflow-hidden border border-zinc-850">
-                        <img 
-                          src={scannerImage} 
-                          alt="Pratinjau alat gym" 
-                          referrerPolicy="no-referrer"
-                          className="max-h-[200px] max-w-full object-contain rounded-lg"
-                        />
-                        <button 
-                          onClick={resetScanner}
-                          className="absolute top-2 right-2 p-1.5 bg-black/80 hover:bg-black text-white hover:text-[#c3f400] rounded-full transition-colors"
-                          title="Hapus foto"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      </div>
-
-                      <div className="flex w-full gap-3">
-                        <button
-                          onClick={resetScanner}
-                          className="flex-1 bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 text-zinc-300 py-3 rounded-xl text-xs font-bold uppercase tracking-wider transition-colors min-h-[44px]"
-                        >
-                          Ganti Foto
-                        </button>
-                        <button
-                          onClick={runEquipmentScan}
-                          disabled={isScanning}
-                          className="flex-[2] bg-[#c3f400] hover:bg-[#abd600] text-black py-3 rounded-xl text-xs font-black uppercase tracking-wider transition-all scale-down active:scale-95 disabled:opacity-50 flex items-center justify-center gap-1.5 shadow-[0_0_15px_rgba(195,244,0,0.15)] min-h-[44px]"
-                        >
-                          {isScanning ? (
-                            <>
-                              <RefreshCw className="w-4 h-4 animate-spin" />
-                              MENGANALISIS ALAT...
-                            </>
-                          ) : (
-                            <>
-                              <Camera className="w-4 h-4" />
-                              PINDAI SEKARANG
-                            </>
-                          )}
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="flex flex-col items-center justify-center space-y-4 py-8">
-                      <div className="w-14 h-14 rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-500 hover:text-[#c3f400] transition-colors">
-                        <Camera className="w-7 h-7" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-bold text-zinc-200">Seret dan letakkan gambar alat gym di sini</p>
-                        <p className="text-xs text-zinc-500 mt-1">atau klik tombol di bawah untuk memilih file manual</p>
-                      </div>
-
-                      <label className="bg-zinc-900 border border-zinc-800 hover:border-[#c3f400] text-zinc-300 hover:text-white px-5 py-3 rounded-xl text-xs font-bold uppercase tracking-widest cursor-pointer transition-colors block min-h-[44px] flex items-center justify-center">
-                        PILIH FILE ATAU FOTO
-                        <input 
-                          type="file" 
-                          accept="image/*" 
-                          onChange={handleScannerFileChange} 
-                          className="hidden" 
-                        />
-                      </label>
-                    </div>
-                  )}
-                </div>
-
-                {/* Analysis Report Display */}
-                <div className="bg-[#201f1f] rounded-2xl p-6 border border-zinc-800 flex flex-col justify-between min-h-[340px]">
-                  {isScanning ? (
-                    <div className="flex-1 flex flex-col items-center justify-center space-y-3 py-12">
-                      <div className="w-12 h-12 rounded-full border-2 border-t-[#c3f400] border-zinc-850 animate-spin flex items-center justify-center text-[#c3f400]">
-                        <Zap className="w-5 h-5 animate-pulse" />
-                      </div>
-                      <p className="font-display font-bold text-[#c3f400] text-sm animate-pulse">Menganalisis...</p>
-                      <p className="text-xs text-zinc-500 text-center max-w-[240px]">Mengidentifikasi alat dan cara penggunaannya</p>
-                    </div>
-                  ) : scannerResult ? (
-                    <div className="space-y-4 animate-fade-in flex-1 text-left">
-                      <div>
-                        <span className="font-mono text-[12px] font-bold text-[#c3f400] bg-[#c3f400]/10 border border-[#c3f400]/25 rounded px-1.5 py-0.5 uppercase tracking-wider">Identifikasi Sukses</span>
-                        <h3 className="font-display text-2xl font-black text-white mt-1.5 border-b border-zinc-800 pb-2 flex items-center gap-2">
-                          <CheckCircle2 className="w-6 h-6 text-[#c3f400]" />
-                          {scannerResult.name}
-                        </h3>
-                      </div>
-
-                      <div className="space-y-3 text-sm">
-                        <div className="space-y-1">
-                          <h4 className="text-[12px] uppercase tracking-wider text-zinc-500 font-bold block">Deskripsi Alat</h4>
-                          <p className="text-zinc-300 leading-relaxed font-sans text-xs">{scannerResult.description}</p>
-                        </div>
-
-                        <div className="space-y-1">
-                          <h4 className="text-[12px] uppercase tracking-wider text-[#a6e6ff] font-bold block">Otot Target Utama</h4>
-                          <p className="text-zinc-300 leading-relaxed font-sans text-xs font-semibold italic">{scannerResult.target_muscles}</p>
-                        </div>
-
-                        <div className="space-y-1.5">
-                          <h4 className="text-[12px] uppercase tracking-wider text-[#c3f400] font-bold block">Cara Penggunaan Yang Benar</h4>
-                          <div className="bg-zinc-900 border border-zinc-850 rounded-xl p-3.5 space-y-1.5 text-[12px] text-zinc-400 leading-relaxed max-h-[140px] overflow-y-auto font-sans">
-                            {scannerResult.proper_form.split('\n').map((para, i) => (
-                              <p key={i}>{para}</p>
-                            ))}
-                          </div>
-                        </div>
-
-                        {/* Save to gym equipment */}
-                        <button
-                          onClick={() => saveEquipmentToGym(scannerResult.name)}
-                          disabled={gymEquipmentList.includes(scannerResult.name)}
-                          className="w-full bg-[#c3f400] text-black font-bold py-2.5 rounded-xl text-xs disabled:opacity-40 disabled:cursor-default mt-2"
-                        >
-                          {gymEquipmentList.includes(scannerResult.name) ? '✓ Sudah di Gym List' : '+ Tambah ke Gym List'}
-                        </button>
-                      </div>
-                    </div>
-                  ) : scannerError ? (
-                    <div className="flex-1 flex flex-col items-center justify-center space-y-3 py-12 text-center text-red-100">
-                      <AlertCircle className="w-10 h-10 text-red-500 animate-bounce" />
-                      <div>
-                        <p className="font-bold">Gagal Menganalisis Gambar</p>
-                        <p className="text-xs text-zinc-500 mt-1 max-w-[240px] mx-auto leading-relaxed">{scannerError}</p>
-                      </div>
-                      <button 
-                        onClick={resetScanner}
-                        className="px-4 py-2 bg-zinc-900 border border-zinc-800 rounded-lg text-xs font-bold uppercase text-zinc-300 hover:text-white mt-2 min-h-[40px]"
-                      >
-                        Atur Ulang & Coba Lagi
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="flex-1 flex flex-col items-center justify-center text-center space-y-3 py-12 text-zinc-500">
-                      <HelpCircle className="w-10 h-10 text-zinc-700" />
-                      <div>
-                        <p className="text-sm font-bold text-zinc-450">Menunggu Unggahan Foto Alat</p>
-                        <p className="text-xs text-zinc-600 max-w-[220px] mx-auto mt-1 leading-relaxed">Pindai foto alat/mesin gym apa saja untuk langsung tahu nama, kelompok otot target, dan cara mengoperasikannya.</p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Gym Equipment List */}
-              <div className="bg-[#121212] rounded-2xl p-5 border border-zinc-800 space-y-3">
-                <div className="flex items-center justify-between">
-                  <h4 className="font-display font-bold text-white text-sm">Alat di Gym Saya</h4>
-                  <span className="text-[12px] text-zinc-500">{gymEquipmentList.length} alat</span>
-                </div>
-                {gymEquipmentList.length > 0 && (
-                  <div className="flex flex-wrap gap-2">
-                    {gymEquipmentList.map(eq => (
-                      <span key={eq} className="inline-flex items-center gap-1 bg-zinc-900 border border-zinc-800 rounded-lg px-2.5 py-1.5 text-[12px] text-zinc-300">
-                        {eq}
-                        <button onClick={() => removeGymEquipment(eq)} className="text-zinc-600 hover:text-red-400 ml-0.5">×</button>
-                      </span>
-                    ))}
-                  </div>
-                )}
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    placeholder="Tambah alat manual..."
-                    id="manual-equip-input"
-                    className="flex-1 bg-zinc-900 border border-zinc-800 rounded-xl h-10 px-3 text-xs text-white"
-                    onKeyDown={e => {
-                      if (e.key === 'Enter') {
-                        const input = e.currentTarget;
-                        if (input.value.trim()) { saveEquipmentToGym(input.value.trim()); input.value = ''; }
-                      }
-                    }}
-                  />
-                  <button
-                    onClick={() => {
-                      const input = document.getElementById('manual-equip-input') as HTMLInputElement;
-                      if (input?.value.trim()) { saveEquipmentToGym(input.value.trim()); input.value = ''; }
-                    }}
-                    className="bg-[#c3f400] text-black font-bold px-4 rounded-xl text-xs"
-                  >+</button>
-                </div>
-                <p className="text-[12px] text-zinc-600">List ini digunakan saat generate plan latihan</p>
-              </div>
-            </motion.div>
+            <EquipmentScanner 
+              gymEquipmentList={gymEquipmentList}
+              onSaveEquipment={saveEquipmentToGym}
+              onRemoveEquipment={removeGymEquipment}
+            />
           )}
         </AnimatePresence>
 

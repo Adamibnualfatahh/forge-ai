@@ -1,6 +1,13 @@
-const CACHE_NAME = 'forge-ai-v1';
-const STATIC_ASSETS = ['/', '/icon.svg', '/manifest.json'];
+const CACHE_NAME = 'forge-ai-v2';
+const STATIC_ASSETS = [
+  '/',
+  '/index.html',
+  '/icon.svg',
+  '/manifest.json',
+  '/logo-invictuswave.svg'
+];
 
+// Use a stale-while-revalidate strategy for assets
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => cache.addAll(STATIC_ASSETS))
@@ -19,20 +26,44 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
   const { request } = event;
-  if (request.method !== 'GET') return;
+  
+  // Skip non-GET and chrome-extension requests
+  if (request.method !== 'GET' || request.url.startsWith('chrome-extension')) return;
+
+  // For API requests, try network first, then fallback to cache if available (for read-only data)
   if (request.url.includes('/api/')) {
     event.respondWith(
-      fetch(request).catch(() => new Response(JSON.stringify({ error: 'offline' }), { headers: { 'Content-Type': 'application/json' } }))
+      fetch(request)
+        .then(response => {
+          // Cache successful API GET requests for offline fallback
+          if (response.status === 200) {
+            const copy = response.clone();
+            caches.open(CACHE_NAME).then(cache => cache.put(request, copy));
+          }
+          return response;
+        })
+        .catch(() => {
+          return caches.match(request).then(cached => {
+            if (cached) return cached;
+            return new Response(JSON.stringify({ error: 'offline', message: 'Koneksi gym terputus. Data mungkin belum diperbarui.' }), { 
+              status: 503,
+              headers: { 'Content-Type': 'application/json' } 
+            });
+          });
+        })
     );
     return;
   }
+
+  // For static assets: Stale-While-Revalidate
   event.respondWith(
     caches.match(request).then((cached) => {
       const fetched = fetch(request).then((response) => {
         const clone = response.clone();
         caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
         return response;
-      });
+      }).catch(() => null);
+      
       return cached || fetched;
     })
   );
