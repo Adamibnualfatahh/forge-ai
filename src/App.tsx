@@ -1771,78 +1771,101 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* FIXED BOTTOM NAVIGATION BAR SYSTEM */}
-      <nav className="fixed bottom-0 left-0 w-full ios-glass bg-[#121212]/80 dark-nav border-t border-[#2c2c2c] dark-border pt-2 pb-[max(env(safe-area-inset-bottom),12px)] px-3 flex justify-around items-center z-40" style={{ maxWidth: '430px', margin: '0 auto', right: 0 }}>
-        {/* Tab 1: Dashboard */}
-        <button 
-          onClick={() => safeSetTab('dashboard')}
-          aria-label="Dashboard"
-          className={`flex flex-col items-center justify-center py-1.5 px-1 sm:px-3 rounded-xl transition-all scale-down active:scale-90 flex-1 sm:flex-none ${
-            currentTab === 'dashboard' 
-              ? "bg-[#c3f400] text-black shadow-[0_2px_10px_rgba(195,244,0,0.25)] font-bold" 
-              : "text-zinc-500 hover:text-white"
-          }`}
-        >
-          <Activity className="w-5 sm:w-5.5 h-5 sm:h-5.5" />
-          <span className="text-[12px] sm:text-[12px] uppercase font-bold tracking-wider mt-1 block">Home</span>
-        </button>
+      {/* FIXED BOTTOM NAVIGATION BAR SYSTEM - iOS LIQUID GLASS FLOATING PILL */}
+      <div className="fixed bottom-8 left-0 right-0 z-50 flex justify-center px-6" style={{ maxWidth: '430px', margin: '0 auto' }}>
+        <nav className="w-full ios-glass bg-[#1c1c1e]/60 border border-white/[0.08] rounded-[2.8rem] h-[72px] px-2 flex items-center justify-around shadow-[0_25px_50px_-12px_rgba(0,0,0,0.5)] relative">
+          
+          {/* Tab 1: Dashboard */}
+          <button 
+            onClick={() => safeSetTab('dashboard')}
+            className={`flex-1 h-full flex flex-col items-center justify-center relative transition-all duration-300 ${
+              currentTab === 'dashboard' ? "text-[#c3f400]" : "text-zinc-500"
+            }`}
+          >
+            {currentTab === 'dashboard' && (
+              <motion.div 
+                layoutId="nav-pill" 
+                className="absolute inset-1.5 bg-white/[0.07] border border-white/[0.05] rounded-[2rem] shadow-inner"
+                transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+              />
+            )}
+            <Activity className={`w-6 h-6 transition-transform duration-300 ${currentTab === 'dashboard' ? "scale-110" : "scale-100"}`} />
+            <span className={`text-[9px] font-black uppercase tracking-widest mt-1 transition-all duration-300 ${currentTab === 'dashboard' ? "opacity-100 translate-y-0" : "opacity-0 translate-y-1 h-0 overflow-hidden"}`}>Home</span>
+          </button>
 
-        {/* Tab 2: Logger */}
-        <button 
-          onClick={() => safeSetTab('logger')}
-          aria-label="Workout Logger"
-          className={`flex flex-col items-center justify-center py-1.5 px-1 sm:px-3 rounded-xl transition-all scale-down active:scale-90 flex-1 sm:flex-none ${
-            currentTab === 'logger' 
-              ? "bg-[#c3f400] text-black shadow-[0_2px_10px_rgba(195,244,0,0.25)] font-bold" 
-              : "text-zinc-500 hover:text-white"
-          }`}
-        >
-          <Dumbbell className="w-5 sm:w-5.5 h-5 sm:h-5.5" />
-          <span className="text-[12px] sm:text-[12px] uppercase font-bold tracking-wider mt-1 block">Logger</span>
-        </button>
+          {/* Tab 2: Logger */}
+          <button 
+            onClick={() => safeSetTab('logger')}
+            className={`flex-1 h-full flex flex-col items-center justify-center relative transition-all duration-300 ${
+              currentTab === 'logger' ? "text-[#c3f400]" : "text-zinc-500"
+            }`}
+          >
+            {currentTab === 'logger' && (
+              <motion.div 
+                layoutId="nav-pill" 
+                className="absolute inset-1.5 bg-white/[0.07] border border-white/[0.05] rounded-[2rem] shadow-inner"
+                transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+              />
+            )}
+            <Dumbbell className={`w-6 h-6 transition-transform duration-300 ${currentTab === 'logger' ? "scale-110" : "scale-100"}`} />
+            <span className={`text-[9px] font-black uppercase tracking-widest mt-1 transition-all duration-300 ${currentTab === 'logger' ? "opacity-100 translate-y-0" : "opacity-0 translate-y-1 h-0 overflow-hidden"}`}>Log</span>
+          </button>
 
-        {/* Tab 3: Progress */}
-        <button 
-          onClick={() => safeSetTab('progress')}
-          aria-label="Progress & Recomposition"
-          className={`flex flex-col items-center justify-center py-1.5 px-1 sm:px-3 rounded-xl transition-all scale-down active:scale-90 flex-1 sm:flex-none ${
-            currentTab === 'progress' 
-              ? "bg-[#c3f400] text-black shadow-[0_2px_10px_rgba(195,244,0,0.25)] font-bold" 
-              : "text-zinc-500 hover:text-white"
-          }`}
-        >
-          <Scale className="w-5 sm:w-5.5 h-5 sm:h-5.5" />
-          <span className="text-[12px] sm:text-[12px] uppercase font-bold tracking-wider mt-1 block">Recomp</span>
-        </button>
+          {/* Tab 3: Progress */}
+          <button 
+            onClick={() => safeSetTab('progress')}
+            className={`flex-1 h-full flex flex-col items-center justify-center relative transition-all duration-300 ${
+              currentTab === 'progress' ? "text-[#c3f400]" : "text-zinc-500"
+            }`}
+          >
+            {currentTab === 'progress' && (
+              <motion.div 
+                layoutId="nav-pill" 
+                className="absolute inset-1.5 bg-white/[0.07] border border-white/[0.05] rounded-[2rem] shadow-inner"
+                transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+              />
+            )}
+            <Scale className={`w-6 h-6 transition-transform duration-300 ${currentTab === 'progress' ? "scale-110" : "scale-100"}`} />
+            <span className={`text-[9px] font-black uppercase tracking-widest mt-1 transition-all duration-300 ${currentTab === 'progress' ? "opacity-100 translate-y-0" : "opacity-0 translate-y-1 h-0 overflow-hidden"}`}>Recomp</span>
+          </button>
 
-        {/* Tab 4: AI Chat */}
-        <button 
-          onClick={() => safeSetTab('chat')}
-          aria-label="AI Chat Trainer"
-          className={`flex flex-col items-center justify-center py-1.5 px-1 sm:px-3 rounded-xl transition-all scale-down active:scale-90 flex-1 sm:flex-none ${
-            currentTab === 'chat' 
-              ? "bg-[#c3f400] text-black shadow-[0_2px_10px_rgba(195,244,0,0.25)] font-bold" 
-              : "text-zinc-500 hover:text-white"
-          }`}
-        >
-          <MessageSquare className="w-5 sm:w-5.5 h-5 sm:h-5.5" />
-          <span className="text-[12px] sm:text-[12px] uppercase font-bold tracking-wider mt-1 block">Chat AI</span>
-        </button>
+          {/* Tab 4: AI Chat */}
+          <button 
+            onClick={() => safeSetTab('chat')}
+            className={`flex-1 h-full flex flex-col items-center justify-center relative transition-all duration-300 ${
+              currentTab === 'chat' ? "text-[#c3f400]" : "text-zinc-500"
+            }`}
+          >
+            {currentTab === 'chat' && (
+              <motion.div 
+                layoutId="nav-pill" 
+                className="absolute inset-1.5 bg-white/[0.07] border border-white/[0.05] rounded-[2rem] shadow-inner"
+                transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+              />
+            )}
+            <MessageSquare className={`w-6 h-6 transition-transform duration-300 ${currentTab === 'chat' ? "scale-110" : "scale-100"}`} />
+            <span className={`text-[9px] font-black uppercase tracking-widest mt-1 transition-all duration-300 ${currentTab === 'chat' ? "opacity-100 translate-y-0" : "opacity-0 translate-y-1 h-0 overflow-hidden"}`}>Coach</span>
+          </button>
 
-        {/* Tab 5: Scanner */}
-        <button 
-          onClick={() => safeSetTab('scanner')}
-          aria-label="Scan Gym Equipment"
-          className={`flex flex-col items-center justify-center py-1.5 px-1 sm:px-3 rounded-xl transition-all scale-down active:scale-90 flex-1 sm:flex-none ${
-            currentTab === 'scanner' 
-              ? "bg-[#c3f400] text-black shadow-[0_2px_10px_rgba(195,244,0,0.25)] font-bold" 
-              : "text-zinc-500 hover:text-white"
-          }`}
-        >
-          <Camera className="w-5 sm:w-5.5 h-5 sm:h-5.5" />
-          <span className="text-[12px] sm:text-[12px] uppercase font-bold tracking-wider mt-1 block">Scan</span>
-        </button>
-      </nav>
+          {/* Tab 5: Scanner */}
+          <button 
+            onClick={() => safeSetTab('scanner')}
+            className={`flex-1 h-full flex flex-col items-center justify-center relative transition-all duration-300 ${
+              currentTab === 'scanner' ? "text-[#c3f400]" : "text-zinc-500"
+            }`}
+          >
+            {currentTab === 'scanner' && (
+              <motion.div 
+                layoutId="nav-pill" 
+                className="absolute inset-1.5 bg-white/[0.07] border border-white/[0.05] rounded-[2rem] shadow-inner"
+                transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+              />
+            )}
+            <Compass className={`w-6 h-6 transition-transform duration-300 ${currentTab === 'scanner' ? "scale-110" : "scale-100"}`} />
+            <span className={`text-[9px] font-black uppercase tracking-widest mt-1 transition-all duration-300 ${currentTab === 'scanner' ? "opacity-100 translate-y-0" : "opacity-0 translate-y-1 h-0 overflow-hidden"}`}>Scan</span>
+          </button>
+        </nav>
+      </div>
 
       {/* SHARE WORKOUT CARD */}
       {showShare && shareData && activeProfile && (

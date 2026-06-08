@@ -19,27 +19,43 @@ export default function RestTimer() {
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
   }, [running, tickRestTimer]);
 
-  // Detect timer completion: was running with time, now stopped at 0
+  // Audio & Haptic Helper for iOS
+  const playIOSNotification = (type: 'warning' | 'finished') => {
+    if ('vibrate' in navigator) {
+      if (type === 'warning') navigator.vibrate([10, 50, 10]);
+      else navigator.vibrate([200, 100, 200]);
+    }
+    
+    try {
+      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      
+      if (type === 'warning') {
+        osc.frequency.setValueAtTime(440, ctx.currentTime);
+        gain.gain.setValueAtTime(0, ctx.currentTime);
+        gain.gain.linearRampToValueAtTime(0.1, ctx.currentTime + 0.01);
+        gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.1);
+      } else {
+        osc.frequency.setValueAtTime(880, ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(1320, ctx.currentTime + 0.5);
+        gain.gain.setValueAtTime(0, ctx.currentTime);
+        gain.gain.linearRampToValueAtTime(0.3, ctx.currentTime + 0.05);
+        gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.5);
+      }
+      
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + 0.5);
+    } catch (e) {}
+  };
+
+  // Detect timer nearing end & completion
   useEffect(() => {
-    if (prevRunningRef.current && prevRemainingRef.current > 0 && !running && remaining === 0) {
-      // Timer just finished
-      if ('vibrate' in navigator) navigator.vibrate([300, 150, 300, 150, 300]);
-      try {
-        const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
-        const playBeep = (freq: number, start: number) => {
-          const osc = ctx.createOscillator();
-          const gain = ctx.createGain();
-          osc.connect(gain);
-          gain.connect(ctx.destination);
-          osc.frequency.value = freq;
-          gain.gain.value = 0.3;
-          osc.start(ctx.currentTime + start);
-          osc.stop(ctx.currentTime + start + 0.15);
-        };
-        playBeep(880, 0);
-        playBeep(880, 0.2);
-        playBeep(1320, 0.4);
-      } catch {}
+    if (running) {
+      if (remaining === 5) playIOSNotification('warning');
+      if (remaining === 0 && prevRemainingRef.current > 0) playIOSNotification('finished');
     }
     prevRunningRef.current = running;
     prevRemainingRef.current = remaining;
