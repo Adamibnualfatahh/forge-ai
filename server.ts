@@ -82,12 +82,17 @@ function getAi() {
 
 // AI model with auto-fallback on rate limit/overload
 const MODELS = ["gemini-2.5-flash", "gemini-2.0-flash"];
-async function generateAI(opts: { prompt: string; json?: boolean }) {
+async function generateAI(opts: { prompt: string; json?: boolean; responseSchema?: any }) {
   const ai = getAi();
   for (const model of MODELS) {
     try {
       const config: any = {};
-      if (opts.json) config.responseMimeType = "application/json";
+      if (opts.json || opts.responseSchema) {
+        config.responseMimeType = "application/json";
+      }
+      if (opts.responseSchema) {
+        config.responseSchema = opts.responseSchema;
+      }
       const response = await ai.models.generateContent({ model, contents: opts.prompt, config });
       return response.text || "";
     } catch (err: any) {
@@ -97,6 +102,56 @@ async function generateAI(opts: { prompt: string; json?: boolean }) {
   }
   return "";
 }
+
+// Schemas for Gemini Structured Outputs
+const recompSchema = {
+  type: Type.OBJECT,
+  properties: {
+    focus_type: { 
+      type: Type.STRING, 
+      enum: ["Caloric Deficit", "Surplus", "Maintenance"],
+      description: "Nutrition focus type based on user profile" 
+    },
+    calories: { 
+      type: Type.INTEGER, 
+      description: "Recommended daily target calories" 
+    },
+    protein: { 
+      type: Type.INTEGER, 
+      description: "Recommended daily protein target in grams" 
+    },
+    analysis: { 
+      type: Type.STRING, 
+      description: "Casual, friendly body recomposition analysis" 
+    }
+  },
+  required: ["focus_type", "calories", "protein", "analysis"]
+};
+
+const workoutPlanSchema = {
+  type: Type.OBJECT,
+  properties: {
+    focus: { 
+      type: Type.STRING, 
+      description: "Name of the workout plan focus, e.g. Push Day, Pull Day, Leg Day" 
+    },
+    exercises: {
+      type: Type.ARRAY,
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          name: { type: Type.STRING, description: "Name of the exercise" },
+          sets: { type: Type.INTEGER, description: "Recommended number of sets" },
+          reps: { type: Type.STRING, description: "Recommended repetitions, e.g. '8-10', '12', or duration for cardio like '30 min'" },
+          weight_kg: { type: Type.NUMBER, description: "Suggested starting weight in kg" },
+          notes: { type: Type.STRING, description: "Tips and overload suggestions" }
+        },
+        required: ["name", "sets", "reps", "notes"]
+      }
+    }
+  },
+  required: ["focus", "exercises"]
+};
 
 // Initialize tables
 async function initDb() {
@@ -596,7 +651,7 @@ Format data pengembalian harus berupa JSON VALID:
   "analysis": "Penjelasan recomposisi tubuh kasual gaul."
 }`;
 
-        const textOutput = await generateAI({ prompt, json: true });
+        const textOutput = await generateAI({ prompt, responseSchema: recompSchema });
         const data = JSON.parse(textOutput.trim());
         
         focusType = data.focus_type || 'Maintenance';
@@ -779,11 +834,157 @@ app.delete("/api/profiles/:id/chat", async (req, res) => {
   }
 });
 
+function getFallbackWorkout(lastFocus: string, equipment: string[], targetFocus?: string, numExercises?: number | null, customInstructions?: string) {
+  let focus = targetFocus && targetFocus !== "Otomatis (Rekomendasi AI)" ? targetFocus : "Push Day";
+  let exercises: any[] = [];
+
+  const equipStr = (equipment || []).join(", ").toLowerCase();
+  const isLimited = (equipment || []).length <= 2 && (equipStr.includes("bodyweight") || equipStr.includes("dumbbell"));
+
+  const rawInst = (customInstructions || "").toLowerCase();
+  const noLegs = rawInst.includes("leg") || rawInst.includes("kaki") || rawInst.includes("cidera") || rawInst.includes("cedera") || rawInst.includes("bawah") || rawInst.includes("lower");
+
+  let selectedRoutine = "push";
+
+  if (targetFocus && targetFocus !== "Otomatis (Rekomendasi AI)") {
+    if (targetFocus.toLowerCase().includes("push")) {
+      selectedRoutine = "push";
+    } else if (targetFocus.toLowerCase().includes("pull")) {
+      selectedRoutine = "pull";
+    } else if (targetFocus.toLowerCase().includes("leg") || targetFocus.toLowerCase().includes("lower")) {
+      selectedRoutine = noLegs ? "push" : "legs";
+    } else if (targetFocus.toLowerCase().includes("upper")) {
+      selectedRoutine = "push";
+    } else {
+      selectedRoutine = "push";
+    }
+  } else {
+    if (lastFocus.toLowerCase().includes("push")) {
+      selectedRoutine = "pull";
+    } else if (lastFocus.toLowerCase().includes("pull")) {
+      selectedRoutine = noLegs ? "push" : "legs";
+    } else {
+      selectedRoutine = "push";
+    }
+  }
+
+  const pullLimited = [
+    { name: "Dumbbell Rows", sets: 4, reps: "10-12", notes: "Squeeze belikat di puncak gerakan, kontrol eksentrik.", weight_kg: 10 },
+    { name: "Dumbbell Bicep Curls", sets: 3, reps: "12-15", notes: "Kunci siku di samping badan, jangan mengayun.", weight_kg: 8 },
+    { name: "Bodyweight Inverted Pulls", sets: 3, reps: "AMRAP", notes: "Gunakan meja miring atau tiang rendah, badan lurus.", weight_kg: 0 },
+    { name: "Dumbbell Hammer Curls", sets: 3, reps: "12", notes: "Grip netral, fokus isi ketebalan lengan bawah.", weight_kg: 8 },
+    { name: "Dumbbell Rear Delt Fly", sets: 3, reps: "12-15", notes: "Badan membungkuk, rasakan kontraksi bahu belakang.", weight_kg: 4 }
+  ];
+
+  const pullFull = [
+    { name: "Barbell Deadlift", sets: 4, reps: "6-8", notes: "Kunci punggung bawah tetap flat, dorong bumi pakai kaki.", weight_kg: 40 },
+    { name: "Lat Pulldown Machine", sets: 4, reps: "10-12", notes: "Tarik bar ke dada atas, busungkan dada.", weight_kg: 35 },
+    { name: "Cable Seated Row", sets: 3, reps: "12", notes: "Tarik ke arah pusar, kendalikan tarikan saat maju.", weight_kg: 30 },
+    { name: "EZ-Bar Bicep Curl", sets: 3, reps: "10-12", notes: "Eksplorasi puncak kontraksi bicep.", weight_kg: 15 },
+    { name: "Face Pulls", sets: 3, reps: "15", notes: "Tarik tali ke arah dahi, kuatkan bahu belakang.", weight_kg: 15 },
+    { name: "Preacher Curl Machine", sets: 3, reps: "12", notes: "Siku bersandar stabil, fokus isolasi biceps.", weight_kg: 15 }
+  ];
+
+  const legsLimited = [
+    { name: "Bodyweight Squats", sets: 4, reps: "15-20", notes: "Turun sampai sejajar paha, dorong tumit.", weight_kg: 0 },
+    { name: "Dumbbell Romanian Deadlifts", sets: 4, reps: "12", notes: "Dorong pinggul ke belakang, rasakan stretch di hamstring.", weight_kg: 10 },
+    { name: "Walking Lunges", sets: 3, reps: "12 langkah/kaki", notes: "Langkah mantap, lutut hampir menyentuh lantai.", weight_kg: 6 },
+    { name: "Plank holding", sets: 3, reps: "45-60 detik", notes: "Kencangkan perut dan sikut sejajar bahu.", weight_kg: 0 },
+    { name: "Calf Raises", sets: 4, reps: "20", notes: "Jinjit maksimal di lantai rata.", weight_kg: 0 }
+  ];
+
+  const legsFull = [
+    { name: "Barbell Back Squats", sets: 4, reps: "8-10", notes: "Jaga dada tegak lurus, dorong dari dasar kaki.", weight_kg: 30 },
+    { name: "Leg Press Machine", sets: 4, reps: "12", notes: "Jangan kunci lutut di puncak gerakan untuk keamanan.", weight_kg: 50 },
+    { name: "Leg Curls (Seat/Lie)", sets: 3, reps: "12-15", notes: "Fokus kontraksi hamstring berulang-ulang.", weight_kg: 20 },
+    { name: "Cable Crunch", sets: 3, reps: "15", notes: "Lengkungkan punggung saat menarik beban ke bawah.", weight_kg: 20 },
+    { name: "Leg Extension Machine", sets: 3, reps: "12-15", notes: "Isolasi paha depan, tahan 1 detik di puncak.", weight_kg: 25 },
+    { name: "Calf Raise Machine", sets: 4, reps: "15", notes: "Fokus kontraksi penuh betis di puncak gerakan.", weight_kg: 25 }
+  ];
+
+  const pushLimited = [
+    { name: "Decline Push-Ups", sets: 4, reps: "Max Reps", notes: "Kunci perut, letakkan kaki di tempat tinggi.", weight_kg: 0 },
+    { name: "Dumbbell Shoulder Press", sets: 3, reps: "12", notes: "Dorong vertikal, perlahan saat menurunkan beban.", weight_kg: 10 },
+    { name: "Dumbbell Floor Press", sets: 4, reps: "12", notes: "Alternatif bench press, siku menyentuh lantai pelan.", weight_kg: 12 },
+    { name: "Tricep Dips on Bench", sets: 3, reps: "15", notes: "Jaga posisi punggung tetap dekat ke bangku.", weight_kg: 0 },
+    { name: "Dumbbell Lateral Raise", sets: 3, reps: "15", notes: "Fokus pada samping bahu, pergelangan tangan rileks.", weight_kg: 4 }
+  ];
+
+  const pushFull = [
+    { name: "Barbell Flat Bench Press", sets: 4, reps: "8-10", notes: "Grip kuat, turunkan bar perlahan ke arah dada bawah.", weight_kg: 35 },
+    { name: "Seat Dumbbell Overhead Press", sets: 4, reps: "10", notes: "Kembangkan bahu luar sepenuhnya.", weight_kg: 12 },
+    { name: "Cable Chest Crossover", sets: 3, reps: "12-15", notes: "Rasakan squeezing otot dada bagian tengah.", weight_kg: 15 },
+    { name: "Cable Tricep Pushdown", sets: 3, reps: "12", notes: "Kunci siku, luruskan lengan ke bawah penuh.", weight_kg: 15 },
+    { name: "Incline Dumbbell Press", sets: 3, reps: "10-12", notes: "Sudut bangku 30 derajat, target dada atas.", weight_kg: 12 },
+    { name: "Lateral Raise Machine", sets: 3, reps: "15", notes: "Isolasi otot bahu samping secara maksimal.", weight_kg: 10 }
+  ];
+
+  if (selectedRoutine === "pull") {
+    focus = "Pull Day";
+    exercises = isLimited ? pullLimited : pullFull;
+  } else if (selectedRoutine === "legs") {
+    focus = "Legs & Core Day";
+    exercises = isLimited ? legsLimited : legsFull;
+  } else {
+    focus = "Push Day";
+    exercises = isLimited ? pushLimited : pushFull;
+  }
+
+  const targetCount = numExercises && numExercises > 0 ? numExercises : exercises.length;
+  let finalExercises: any[] = [];
+  
+  if (targetCount === exercises.length) {
+    finalExercises = [...exercises];
+  } else if (targetCount < exercises.length) {
+    finalExercises = exercises.slice(0, targetCount);
+  } else {
+    finalExercises = [...exercises];
+    let idx = 0;
+    while (finalExercises.length < targetCount) {
+      const original = exercises[idx % exercises.length];
+      finalExercises.push({
+        ...original,
+        name: `${original.name} (Set Tambahan)`
+      });
+      idx++;
+    }
+  }
+
+  return { focus, exercises: finalExercises };
+}
+
 // 9. Workout Planner AI Generator
 app.post("/api/workouts/generate", async (req, res) => {
-  const { profileId, location, equipment, lastFocus, gymCompleteness, targetFocus } = req.body;
+  const { profileId, location, equipment, lastFocus, gymCompleteness, targetFocus, customInstructions } = req.body;
+  const numExercises = req.body.numExercises ? parseInt(String(req.body.numExercises), 10) : null;
   try {
     const db = getDb();
+    
+    // Fetch active profile to check goals (bulk vs cut)
+    const profileRes = await db.execute({
+      sql: "SELECT * FROM profiles WHERE id = ?",
+      args: [profileId]
+    });
+    const profile = profileRes.rows[0];
+    const profileName = profile ? profile.name : "Klien";
+    const focusArea = profile ? profile.focus_area : "Umum";
+    const currentWeight = profile ? (profile.weight as number) : 70;
+    const targetWeight = profile ? (profile.target_weight as number) : 70;
+
+    // Fetch the actual last completed workout session from DB to enforce recovery safety
+    const lastWorkoutRes = await db.execute({
+      sql: "SELECT focus, exercises FROM workouts WHERE profile_id = ? ORDER BY date DESC LIMIT 1",
+      args: [profileId]
+    });
+    const lastWorkout = lastWorkoutRes.rows[0];
+    const actualLastFocus = lastWorkout ? lastWorkout.focus : (lastFocus || "Belum ada");
+    let lastExercisesText = "Belum ada";
+    if (lastWorkout && lastWorkout.exercises) {
+      try {
+        const parsedExs = JSON.parse(lastWorkout.exercises as string);
+        lastExercisesText = parsedExs.map((e: any) => e.name).join(", ");
+      } catch (e) {}
+    }
     
     // Fetch PRs for progressive overload context
     const prsRes = await db.execute({
@@ -805,25 +1006,47 @@ app.post("/api/workouts/generate", async (req, res) => {
 
     const prContext = Object.entries(prs).map(([name, weight]) => `${name}: ${weight}kg`).join(", ");
 
-    const prompt = `Kamu adalah Forge AI Trainer Pro. 
-Generate workout plan untuk ${profileId}. 
-Lokasi: ${location}. 
-Alat: ${equipment}. 
-Sesi Terakhir: ${lastFocus}. 
-Target Hari Ini: ${targetFocus}.
+    // Determine type of program based on current weight vs target weight
+    const isFatLoss = targetWeight < currentWeight;
+    const programType = isFatLoss
+      ? `Fat Loss & Conditioning (Utamakan repetisi tinggi 12-15 reps dengan intensitas tinggi, sela istirahat pendek, dan WAJIB tambahkan 1-2 gerakan kardio terstruktur seperti Treadmill, Sepeda Statis, atau Jump Rope di akhir sesi)`
+      : `Muscle Bulking & Strength (Utamakan latihan kekuatan/hipertrofi dengan compound lifts berat, repetisi sedang 6-10 reps, dan fokus pada progressive overload beban berat)`;
 
-KONTEKS PROGRESSIVE OVERLOAD (PR Terakhir):
+    // Injected optional constraints
+    let constraintText = "";
+    if (numExercises) {
+      constraintText += `\n- Jumlah Gerakan Wajib: Hasilkan tepat ${numExercises} gerakan dalam daftar exercises. Tidak boleh kurang dan tidak boleh lebih.`;
+    }
+    if (customInstructions && customInstructions.trim() !== "") {
+      constraintText += `\n- PERINTAH TAMBAHAN DARI KLIEN (WAJIB DIPATUHI DENGAN PRIORITAS TERTINGGI): "${customInstructions}". Patuhi instruksi ini sepenuhnya. Misalnya jika ada perintah 'jangan ada leg day karena cedera', maka Anda sama sekali dilarang mencantumkan gerakan kaki atau melatih tubuh bagian bawah (Lower Body/Legs).`;
+    }
+
+    const prompt = `Kamu adalah Forge AI Trainer Pro. 
+Generate workout plan yang dipersonalisasi untuk klien berikut:
+- Nama Klien: ${profileName}
+- Target Berat Badan: ${currentWeight} kg -> ${targetWeight} kg
+- Fokus Profil: ${focusArea}
+- Tipe Program Latihan & Nutrisi: ${programType}${constraintText}
+
+INFORMASI LATIHAN SEBELUMNYA & RECOVERY OTOT (WAJIB DIPATUHI DEMI KEAMANAN):
+- Sesi Terakhir Klien: "${actualLastFocus}" dengan gerakan: [${lastExercisesText}]
+- Aturan Recovery: Otot utama yang sudah dilatih pada sesi terakhir membutuhkan waktu istirahat minimal 48 jam sebelum dilatih kembali.
+- Jika Sesi Terakhir melatih kaki/tubuh bagian bawah (e.g. Legs, Leg Day, Lower Body, atau gerakan kaki seperti Squats, Leg Press, Lunges), maka hari ini JANGAN berikan gerakan kaki apapun. Hari ini harus melatih bagian tubuh atas (Upper Body, Push, atau Pull).
+- Jika Sesi Terakhir melatih dada/bahu/tricep (Push Day/Upper Body), hari ini JANGAN berikan gerakan dorong dada atau bahu. Gantilah dengan gerakan tarik (Pull/Back/Biceps) atau tubuh bagian bawah (Legs).
+- Secara umum, hindari melatih kelompok otot utama yang sama berturut-turut dua hari berturut-turut demi mencegah overtraining dan cedera.
+
+KONTEKS LATIHAN KLIEN HARI INI:
+- Lokasi Latihan: ${location}
+- Alat yang Tersedia: ${equipment}
+- Target Hari Ini: ${targetFocus}
+
+KONTEKS PROGRESSIVE OVERLOAD (PR Terakhir Klien):
 ${prContext || "Belum ada riwayat."}
 
 INSTRUKSI KHUSUS:
 1. Jika gerakan ada di daftar PR, berikan saran beban (weight_kg) yang sedikit lebih tinggi (+1.25kg sampai +2.5kg) atau repetisi lebih banyak untuk progres.
-2. Format output harus JSON VALID:
-{
-  "focus": "Nama Fokus (e.g. Push Day)",
-  "exercises": [
-    { "name": "Nama Gerakan", "sets": 3, "reps": "8-10", "weight_kg": 52.5, "notes": "Saran progres: +2.5kg dari sesi lalu" }
-  ]
-}`;
+2. Pastikan jenis latihan disesuaikan dengan profil gol klien (${profileName} ingin ${isFatLoss ? "mengurangi berat badan" : "menambah berat badan/otot"}).
+3. PENTING: Anda WAJIB mengembalikan daftar exercises dengan jumlah elemen array tepat sebanyak ${numExercises || 6} gerakan!`;
     
     let focus = "Full Body";
     let exercises = [];
@@ -831,17 +1054,38 @@ INSTRUKSI KHUSUS:
  
     if (hasApiKey) {
       try {
-        const textOutput = await generateAI({ prompt, json: true });
+        const textOutput = await generateAI({ prompt, responseSchema: workoutPlanSchema });
         const data = JSON.parse(textOutput.trim());
         focus = data.focus || "Full Body";
         exercises = data.exercises || [];
+        
+        // Final sanity check: if AI generated exercises count doesn't match and numExercises is provided
+        if (numExercises && exercises.length !== numExercises) {
+          console.warn(`Gemini returned ${exercises.length} exercises instead of requested ${numExercises}. Adjusting...`);
+          if (exercises.length > numExercises) {
+            exercises = exercises.slice(0, numExercises);
+          } else {
+            let idx = 0;
+            while (exercises.length < numExercises) {
+              const original = exercises[idx % exercises.length];
+              exercises.push({
+                ...original,
+                name: `${original.name} (Variasi)`
+              });
+              idx++;
+            }
+          }
+        }
       } catch (aiErr) {
-        focus = "Push Day";
-        exercises = [{ name: "Push Ups", sets: 3, reps: "15", notes: "Form kencang" }];
+        console.error("Gemini AI failed, using fallback workout:", aiErr);
+        const fb = getFallbackWorkout(actualLastFocus, equipment || [], targetFocus, numExercises, customInstructions);
+        focus = fb.focus;
+        exercises = fb.exercises;
       }
     } else {
-      focus = "Push Day";
-      exercises = [{ name: "Push Ups", sets: 3, reps: "15", notes: "Form kencang" }];
+      const fb = getFallbackWorkout(actualLastFocus, equipment || [], targetFocus, numExercises, customInstructions);
+      focus = fb.focus;
+      exercises = fb.exercises;
     }
     res.json({ focus, exercises });
   } catch (error) {
@@ -915,6 +1159,33 @@ app.post("/api/profiles/:id/weight-history", async (req, res) => {
     res.json({ id: entryId, weight, date });
   } catch (e) { res.status(500).json({ error: "Failed to log weight" }); }
 });
+
+app.delete("/api/profiles/:profileId/weight-history/:id", async (req, res) => {
+  const { profileId, id } = req.params;
+  try {
+    const db = getDb();
+    await db.execute({
+      sql: "DELETE FROM weight_history WHERE id = ? AND profile_id = ?",
+      args: [id, profileId]
+    });
+    // Update main profile weight to match the next latest entry
+    const latest = await db.execute({
+      sql: "SELECT weight FROM weight_history WHERE profile_id = ? ORDER BY timestamp DESC LIMIT 1",
+      args: [profileId]
+    });
+    if (latest.rows.length > 0) {
+      const newWeight = latest.rows[0].weight;
+      await db.execute({
+        sql: "UPDATE profiles SET weight = ? WHERE id = ?",
+        args: [newWeight, profileId]
+      });
+    }
+    await cacheDel("profiles");
+    await cacheDel(`weight:${profileId}`);
+    res.json({ success: true });
+  } catch (e) { res.status(500).json({ error: "Failed to delete weight entry" }); }
+});
+
 
 // 14. Workout Templates
 app.get("/api/profiles/:id/templates", async (req, res) => {

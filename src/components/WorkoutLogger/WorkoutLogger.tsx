@@ -22,6 +22,10 @@ interface WorkoutLoggerProps {
   toggleLoggerEquipment: (item: string) => void;
   loggerPlanFocus: string;
   setLoggerPlanFocus: (val: string) => void;
+  loggerNumExercises: string;
+  setLoggerNumExercises: (val: string) => void;
+  loggerCustomInstructions: string;
+  setLoggerCustomInstructions: (val: string) => void;
   generateWorkoutPlan: () => void;
   isGeneratingWorkoutPlan: boolean;
   loggerExercises: Exercise[];
@@ -84,6 +88,10 @@ export default function WorkoutLogger({
   toggleLoggerEquipment,
   loggerPlanFocus,
   setLoggerPlanFocus,
+  loggerNumExercises,
+  setLoggerNumExercises,
+  loggerCustomInstructions,
+  setLoggerCustomInstructions,
   generateWorkoutPlan,
   isGeneratingWorkoutPlan,
   loggerExercises,
@@ -231,6 +239,38 @@ export default function WorkoutLogger({
             })}
           </div>
         </div>
+
+        {loggerPlanFocus === "Otomatis (Rekomendasi AI)" && (
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="sm:col-span-1">
+              <label className="block text-[12px] uppercase tracking-wide text-zinc-500 font-semibold mb-1">Jumlah Gerakan (opsional)</label>
+              <select
+                value={loggerNumExercises}
+                onChange={(e) => setLoggerNumExercises(e.target.value)}
+                className="w-full bg-[#131313] border border-zinc-700 rounded-lg h-10 px-3 text-sm text-white focus:outline-none focus:border-[#c3f400]"
+              >
+                <option value="">Rekomendasi AI</option>
+                <option value="3">3 Gerakan</option>
+                <option value="4">4 Gerakan</option>
+                <option value="5">5 Gerakan</option>
+                <option value="6">6 Gerakan</option>
+                <option value="7">7 Gerakan</option>
+                <option value="8">8 Gerakan</option>
+              </select>
+            </div>
+            
+            <div className="sm:col-span-2">
+              <label className="block text-[12px] uppercase tracking-wide text-zinc-500 font-semibold mb-1">Instruksi Khusus ke AI (opsional)</label>
+              <input
+                type="text"
+                placeholder="e.g. Jangan ada leg day dulu karena cedera"
+                value={loggerCustomInstructions}
+                onChange={(e) => setLoggerCustomInstructions(e.target.value)}
+                className="w-full bg-[#131313] border border-zinc-700 rounded-lg h-10 px-3 text-sm text-white focus:outline-none focus:border-[#c3f400]"
+              />
+            </div>
+          </div>
+        )}
 
         <div className="pt-2">
           <button 

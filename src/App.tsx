@@ -40,7 +40,8 @@ import {
   Sun,
   Moon,
   Download,
-  Share2
+  Share2,
+  WifiOff
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
@@ -66,7 +67,15 @@ import WorkoutLogger from "./components/WorkoutLogger/WorkoutLogger";
 import { useForgeStore } from "./store";
 
 export default function App() {
-  const { activeProfileId, setActiveProfileId } = useForgeStore();
+  const { 
+    activeProfileId, 
+    setActiveProfileId,
+    isOffline,
+    setIsOffline,
+    syncQueue,
+    syncOfflineQueue,
+    enqueueSyncAction
+  } = useForgeStore();
 
   // Profiles state
   const [profiles, setProfiles] = useState<Profile[]>([]);
@@ -249,8 +258,42 @@ export default function App() {
   });
   const [loggerTimeStart, setLoggerTimeStart] = useState("");
   const [loggerTimeEnd, setLoggerTimeEnd] = useState("");
-  const [loggerLocation, setLoggerLocation] = useState("Muscle Prime Gym");
-  const [loggerEquipment, setLoggerEquipment] = useState<string[]>(["Barbell", "Dumbbells"]);
+  const [loggerLocation, setLoggerLocation] = useState<string>(() => {
+    return localStorage.getItem('forge-logger-location') || "Muscle Prime Gym";
+  });
+  const [loggerEquipment, setLoggerEquipment] = useState<string[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem('forge-logger-equipment') || '["Barbell", "Dumbbells"]');
+    } catch {
+      return ["Barbell", "Dumbbells"];
+    }
+  });
+
+  // Auto-persist logger location and equipment settings
+  useEffect(() => {
+    localStorage.setItem('forge-logger-location', loggerLocation);
+  }, [loggerLocation]);
+
+  useEffect(() => {
+    localStorage.setItem('forge-logger-equipment', JSON.stringify(loggerEquipment));
+  }, [loggerEquipment]);
+
+  const [loggerNumExercises, setLoggerNumExercises] = useState<string>(() => {
+    return localStorage.getItem('forge-logger-num-exercises') || "";
+  });
+  const [loggerCustomInstructions, setLoggerCustomInstructions] = useState<string>(() => {
+    return localStorage.getItem('forge-logger-custom-instructions') || "";
+  });
+
+  // Auto-persist additional AI plan options
+  useEffect(() => {
+    localStorage.setItem('forge-logger-num-exercises', loggerNumExercises);
+  }, [loggerNumExercises]);
+
+  useEffect(() => {
+    localStorage.setItem('forge-logger-custom-instructions', loggerCustomInstructions);
+  }, [loggerCustomInstructions]);
+
   const [loggerExercises, setLoggerExercises] = useState<Exercise[]>([
     { name: "Barbell Bench Press", sets: 4, reps: "8-10", notes: "Turunkan terkontrol ke dada bawah." },
     { name: "Dumbbell Incline Fly", sets: 3, reps: "12", notes: "Stretch dada maksimal di bawah." },
@@ -342,6 +385,47 @@ export default function App() {
   useEffect(() => {
     fetchProfiles();
   }, []);
+
+  // Handle online/offline PWA events and auto-sync queue
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOffline(false);
+      showToast("Koneksi internet kembali! Mensinkronisasikan perubahan...", "success");
+      syncOfflineQueue(() => {
+        showToast("Semua data berhasil disinkronkan ke cloud!", "success");
+        fetchProfiles();
+        if (activeProfileId) {
+          fetchLogs(activeProfileId);
+          fetchRecomp(activeProfileId);
+        }
+      });
+    };
+
+    const handleOffline = () => {
+      setIsOffline(true);
+      showToast("Koneksi terputus. Bekerja dalam mode offline.", "error");
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    // Initial sync check
+    if (navigator.onLine && syncQueue.length > 0) {
+      syncOfflineQueue(() => {
+        showToast("Sinkronisasi otomatis berhasil!", "success");
+        fetchProfiles();
+        if (activeProfileId) {
+          fetchLogs(activeProfileId);
+          fetchRecomp(activeProfileId);
+        }
+      });
+    }
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, [activeProfileId, syncOfflineQueue, setIsOffline, syncQueue.length]);
 
   // Fetch profiles from server
   const fetchProfiles = async () => {
@@ -558,9 +642,11 @@ export default function App() {
           profileId: activeProfile.id,
           location: loggerLocation,
           equipment: [...loggerEquipment, ...gymEquipmentList],
-          lastFocus: todayPlan?.focus || activeProfile.focus_area,
+          lastFocus: logs[0]?.focus || "Tidak ada",
           gymCompleteness: (loggerEquipment.length + gymEquipmentList.length) >= 4 ? "full gym" : "limited",
-          targetFocus: loggerPlanFocus
+          targetFocus: loggerPlanFocus,
+          numExercises: loggerNumExercises ? parseInt(loggerNumExercises) : null,
+          customInstructions: loggerCustomInstructions
         })
       });
 
@@ -628,36 +714,73 @@ export default function App() {
         mockBpm = Math.round(115 + Math.random() * 30);
       }
 
-      const res = await fetch(`/api/profiles/${activeProfile.id}/logs`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          date: loggerDate,
-          focus: todayPlan?.focus || "Custom Workouts",
-          location: loggerLocation,
-          equipment: loggerEquipment.join(", "),
-          exercises: loggerExercises,
-          calories_burned: mockCalories,
-          avg_bpm: mockBpm
-        })
-      });
+      const body = {
+        date: loggerDate,
+        focus: todayPlan?.focus || "Custom Workouts",
+        location: loggerLocation,
+        equipment: loggerEquipment.join(", "),
+        exercises: loggerExercises,
+        calories_burned: mockCalories,
+        avg_bpm: mockBpm
+      };
 
-      if (!res.ok) { setFormError("Gagal menyimpan workout. Coba lagi."); setIsSavingLog(false); return; }
-      // Detect new PRs before refreshing logs
-      const prsBefore: Record<string, number> = {};
-      for (const log of logs) {
-        for (const ex of log.exercises) {
-          if (!ex.is_cardio && ex.weight_kg && (!prsBefore[ex.name] || ex.weight_kg > prsBefore[ex.name])) {
-            prsBefore[ex.name] = ex.weight_kg;
+      const url = `/api/profiles/${activeProfile.id}/logs`;
+
+      try {
+        const res = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body)
+        });
+
+        if (!res.ok) throw new Error("Gagal menyimpan ke server");
+
+        // Detect new PRs before refreshing logs
+        const prsBefore: Record<string, number> = {};
+        for (const log of logs) {
+          for (const ex of log.exercises) {
+            if (!ex.is_cardio && ex.weight_kg && (!prsBefore[ex.name] || ex.weight_kg > prsBefore[ex.name])) {
+              prsBefore[ex.name] = ex.weight_kg;
+            }
           }
         }
+        const detectedPRs = loggerExercises.filter(ex => !ex.is_cardio && ex.weight_kg && ex.weight_kg > (prsBefore[ex.name] || 0))
+          .map(ex => ({ name: ex.name, weight: ex.weight_kg! }));
+        if (detectedPRs.length > 0) setNewPRs(detectedPRs);
+        
+        await fetchLogs(activeProfile.id);
+        await fetchProfiles();
+        showToast("Workout berhasil tersimpan!");
+      } catch (err) {
+        // Offline/Network Down path: queue action and save optimistically
+        enqueueSyncAction(url, "POST", body, `Log latihan ${body.focus}`);
+
+        // Add to local state
+        const tempId = `log_temp_${Date.now()}`;
+        const tempLog: WorkoutLog = {
+          id: tempId,
+          profile_id: activeProfile.id,
+          ...body,
+          created_at: new Date().toISOString()
+        } as any;
+        setLogs(prev => [tempLog, ...prev]);
+
+        // Detect new PRs optimistically
+        const prsBefore: Record<string, number> = {};
+        for (const log of logs) {
+          for (const ex of log.exercises) {
+            if (!ex.is_cardio && ex.weight_kg && (!prsBefore[ex.name] || ex.weight_kg > prsBefore[ex.name])) {
+              prsBefore[ex.name] = ex.weight_kg;
+            }
+          }
+        }
+        const detectedPRs = loggerExercises.filter(ex => !ex.is_cardio && ex.weight_kg && ex.weight_kg > (prsBefore[ex.name] || 0))
+          .map(ex => ({ name: ex.name, weight: ex.weight_kg! }));
+        if (detectedPRs.length > 0) setNewPRs(detectedPRs);
+
+        showToast("Latihan disimpan lokal (Offline)!", "success");
       }
-      const detectedPRs = loggerExercises.filter(ex => !ex.is_cardio && ex.weight_kg && ex.weight_kg > (prsBefore[ex.name] || 0))
-        .map(ex => ({ name: ex.name, weight: ex.weight_kg! }));
-      if (detectedPRs.length > 0) setNewPRs(detectedPRs);
-      await fetchLogs(activeProfile.id);
-      await fetchProfiles();
-      showToast("Workout berhasil tersimpan!");
+
       setLoggerDirty(false);
       setCurrentTab('dashboard');
     } catch (err) {
@@ -786,23 +909,56 @@ export default function App() {
       const timeStart = startDate ? `${pad(startDate.getHours())}:${pad(startDate.getMinutes())}` : null;
       const endDate = new Date();
       const timeEnd = `${pad(endDate.getHours())}:${pad(endDate.getMinutes())}`;
-      const res = await fetch(`/api/profiles/${activeProfile.id}/logs`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          date: todayDateStr,
-          focus: todayPlan.focus,
-          location: workoutSessionLocation,
-          equipment: "Pilihan Custom",
-          exercises: todayPlan.exercises,
-          calories_burned: mockCalories,
-          avg_bpm: mockBpm,
-          time_start: timeStart,
-          time_end: timeEnd
-        })
-      });
+      
+      const body = {
+        date: todayDateStr,
+        focus: todayPlan.focus,
+        location: workoutSessionLocation,
+        equipment: "Pilihan Custom",
+        exercises: todayPlan.exercises,
+        calories_burned: mockCalories,
+        avg_bpm: mockBpm,
+        time_start: timeStart,
+        time_end: timeEnd
+      };
 
-      if (res.ok) {
+      const url = `/api/profiles/${activeProfile.id}/logs`;
+
+      try {
+        const res = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body)
+        });
+
+        if (res.ok) {
+          const vol = calculateTotalVolume(todayPlan.exercises);
+          const actualDuration = workoutStartTime ? Math.floor((Date.now() - workoutStartTime) / 1000) : workoutElapsed;
+          setShareData({ focus: todayPlan.focus, duration: actualDuration, exercises: todayPlan.exercises, volume: vol });
+          setShowShare(true);
+          setIsActivelyTraining(false);
+          setCompletedExercises({});
+          setWorkoutStartTime(null);
+          await fetchLogs(activeProfile.id);
+          await fetchProfiles();
+        } else {
+          throw new Error("Gagal menyimpan ke server");
+        }
+      } catch (err) {
+        // Offline / Network Failure: Queue action and update optimistically
+        enqueueSyncAction(url, "POST", body, `Sesi latihan ${body.focus}`);
+
+        // Add to local state
+        const tempId = `log_temp_${Date.now()}`;
+        const tempLog: WorkoutLog = {
+          id: tempId,
+          profile_id: activeProfile.id,
+          ...body,
+          created_at: new Date().toISOString()
+        } as any;
+        setLogs(prev => [tempLog, ...prev]);
+
+        // Trigger share card and reset active session
         const vol = calculateTotalVolume(todayPlan.exercises);
         const actualDuration = workoutStartTime ? Math.floor((Date.now() - workoutStartTime) / 1000) : workoutElapsed;
         setShareData({ focus: todayPlan.focus, duration: actualDuration, exercises: todayPlan.exercises, volume: vol });
@@ -810,10 +966,8 @@ export default function App() {
         setIsActivelyTraining(false);
         setCompletedExercises({});
         setWorkoutStartTime(null);
-        await fetchLogs(activeProfile.id);
-        await fetchProfiles();
-      } else {
-        showToast("Gagal menyimpan workout", "error");
+
+        showToast("Latihan disimpan lokal (Offline)!", "success");
       }
     } catch (err) {
       console.error(err);
@@ -1167,22 +1321,27 @@ export default function App() {
   // Delete log action
   const handleDeleteWorkoutLog = async (logId: string) => {
     if (!activeProfile) return;
+    
+    // OPTIMISTIC UPDATE: instantly remove from UI
+    setLogs(prev => prev.filter(l => l.id !== logId));
+    setDeleteLogId(null);
+    showToast("Sesi latihan dihapus");
+
+    const url = `/api/profiles/${activeProfile.id}/logs/${logId}`;
+
     try {
-      const res = await fetch(`/api/profiles/${activeProfile.id}/logs/${logId}`, {
+      const res = await fetch(url, {
         method: "DELETE"
       });
       if (res.ok) {
-        // Refresh logs and client profile statistics
+        // Refresh logs and client profile statistics in background
         await fetchLogs(activeProfile.id);
         await fetchProfiles();
-        setDeleteLogId(null);
-        showToast("Sesi latihan dihapus");
       } else {
-        showToast("Gagal menghapus riwayat", "error");
+        throw new Error("Gagal menghapus di server");
       }
     } catch (err) {
-      console.error(err);
-      showToast("Koneksi gagal", "error");
+      enqueueSyncAction(url, "DELETE", null, "Hapus log latihan");
     }
   };
 
@@ -1302,28 +1461,41 @@ export default function App() {
   // Save edited log changes
   const handleUpdateWorkoutLog = async () => {
     if (!activeProfile || !editingLog) return;
+    
+    const body = {
+      date: editDate,
+      focus: editFocus,
+      location: editLocation,
+      equipment: editEquipment.join(", "),
+      exercises: editExercises,
+      time_start: editTimeStart || null,
+      time_end: editTimeEnd || null
+    };
+
+    // OPTIMISTIC UPDATE: instantly update the logs list
+    const updatedLog: WorkoutLog = {
+      ...editingLog,
+      ...body
+    };
+    setLogs(prev => prev.map(l => l.id === editingLog.id ? updatedLog : l));
+    setEditingLog(null);
+    showToast("Log latihan diperbarui");
+
+    const url = `/api/profiles/${activeProfile.id}/logs/${editingLog.id}`;
+
     try {
-      const res = await fetch(`/api/profiles/${activeProfile.id}/logs/${editingLog.id}`, {
+      const res = await fetch(url, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          date: editDate,
-          focus: editFocus,
-          location: editLocation,
-          equipment: editEquipment.join(", "),
-          exercises: editExercises,
-          time_start: editTimeStart || null,
-          time_end: editTimeEnd || null
-        })
+        body: JSON.stringify(body)
       });
       if (res.ok) {
         await fetchLogs(activeProfile.id);
-        setEditingLog(null);
       } else {
-        alert("Gagal memperbarui riwayat latihan.");
+        throw new Error("Gagal memperbarui di server");
       }
     } catch (err) {
-      console.error(err);
+      enqueueSyncAction(url, "PUT", body, `Ubah log latihan ${body.focus}`);
     }
   };
 
@@ -1643,6 +1815,34 @@ export default function App() {
         </div>
       </header>
 
+      {/* OFFLINE & SYNC BANNER */}
+      <AnimatePresence>
+        {(isOffline || syncQueue.length > 0) && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className={`w-full overflow-hidden text-center text-[11px] py-1.5 px-4 font-bold flex items-center justify-center gap-2 border-b transition-all ${
+              isOffline 
+                ? 'bg-amber-500/10 border-amber-500/20 text-amber-400' 
+                : 'bg-[#c3f400]/10 border-[#c3f400]/20 text-[#c3f400]'
+            }`}
+          >
+            {isOffline ? (
+              <>
+                <WifiOff className="w-3.5 h-3.5 shrink-0" />
+                <span>Mode Offline: Perubahan disimpan di perangkat & disinkronkan saat online.</span>
+              </>
+            ) : (
+              <>
+                <RefreshCw className="w-3.5 h-3.5 shrink-0 animate-spin" />
+                <span>Mensinkronisasi {syncQueue.length} perubahan ke server...</span>
+              </>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* VIEWPORT AREA RESPONSIVE CONTAINER */}
       <main 
         className="w-full max-w-[1200px] px-4 md:px-6 mx-auto mt-6 flex-1 flex flex-col pb-[calc(env(safe-area-inset-bottom)+100px)]"
@@ -1716,6 +1916,10 @@ export default function App() {
               toggleLoggerEquipment={toggleLoggerEquipment}
               loggerPlanFocus={loggerPlanFocus}
               setLoggerPlanFocus={setLoggerPlanFocus}
+              loggerNumExercises={loggerNumExercises}
+              setLoggerNumExercises={setLoggerNumExercises}
+              loggerCustomInstructions={loggerCustomInstructions}
+              setLoggerCustomInstructions={setLoggerCustomInstructions}
               generateWorkoutPlan={generateWorkoutPlan}
               isGeneratingWorkoutPlan={isGeneratingWorkoutPlan}
               loggerExercises={loggerExercises}
@@ -1939,10 +2143,27 @@ export default function App() {
       {/* EXERCISE SEARCH MODAL */}
       <AnimatePresence>
         {showExSearch && (
-          <div className="fixed inset-0 bg-black/80 flex flex-col items-center justify-end p-0 z-50 backdrop-blur-sm">
+          <div className="fixed inset-0 bg-black/80 flex flex-col items-center justify-end p-0 z-50 backdrop-blur-sm"
+               onClick={() => { setShowExSearch(false); setExSearchQuery(""); }}>
             <motion.div initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 25 }}
-              className="bg-[#121212] border-t border-zinc-800 rounded-t-2xl w-full max-w-[430px] max-h-[80vh] flex flex-col">
-              <div className="p-4 border-b border-zinc-800 flex items-center gap-3">
+              drag="y"
+              dragConstraints={{ top: 0, bottom: 300 }}
+              dragElastic={{ top: 0, bottom: 0.5 }}
+              onDragEnd={(event, info) => {
+                if (info.offset.y > 100 || info.velocity.y > 500) {
+                  setShowExSearch(false);
+                  setExSearchQuery("");
+                }
+              }}
+              className="bg-[#121212] border-t border-zinc-800 rounded-t-2xl w-full max-w-[430px] max-h-[80vh] flex flex-col cursor-grab active:cursor-grabbing"
+              onClick={e => e.stopPropagation()}>
+              
+              {/* Drag indicator */}
+              <div className="flex justify-center pt-3 pb-1 shrink-0">
+                <div className="w-10 h-1 bg-zinc-700 rounded-full"></div>
+              </div>
+
+              <div className="p-4 pt-2 border-b border-zinc-800 flex items-center gap-3">
                 <input type="text" placeholder="Cari exercise..." value={exSearchQuery} onChange={e => setExSearchQuery(e.target.value)} autoFocus
                   className="flex-1 bg-zinc-900 border border-zinc-800 rounded-xl h-10 px-3 text-sm text-white" />
                 <button onClick={() => { setShowExSearch(false); setExSearchQuery(""); }} className="text-zinc-400 p-2">
@@ -2032,7 +2253,15 @@ export default function App() {
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-              className="bg-[#121212] w-full max-w-[430px] mx-auto mt-auto rounded-t-2xl border-t border-zinc-800 flex flex-col max-h-[92vh] overflow-hidden" onClick={e => e.stopPropagation()}
+              drag="y"
+              dragConstraints={{ top: 0, bottom: 300 }}
+              dragElastic={{ top: 0, bottom: 0.5 }}
+              onDragEnd={(event, info) => {
+                if (info.offset.y > 100 || info.velocity.y > 500) {
+                  setEditingLog(null);
+                }
+              }}
+              className="bg-[#121212] w-full max-w-[430px] mx-auto mt-auto rounded-t-2xl border-t border-zinc-800 flex flex-col max-h-[92vh] overflow-hidden cursor-grab active:cursor-grabbing" onClick={e => e.stopPropagation()}
             >
               {/* Drag indicator */}
               <div className="flex justify-center pt-3 pb-1">

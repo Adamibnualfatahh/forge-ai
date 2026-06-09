@@ -1,7 +1,46 @@
 import React, { useState, useEffect } from "react";
-import { TrendingDown, Plus } from "lucide-react";
+import { TrendingDown, Plus, Trash } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
+import { motion, AnimatePresence } from "motion/react";
+import { useForgeStore } from "./store";
 import { WeightEntry } from "./types";
+
+function SwipeEntry({
+  entry,
+  onDelete
+}: {
+  entry: WeightEntry;
+  onDelete: (id: string) => void;
+}) {
+  return (
+    <div className="relative overflow-hidden rounded-xl h-11 bg-red-600/90 border border-transparent">
+      {/* Background delete indicator */}
+      <div 
+        className="absolute inset-y-0 right-0 w-16 flex items-center justify-center text-white cursor-pointer"
+        onClick={() => onDelete(entry.id)}
+      >
+        <Trash className="w-4 h-4" />
+      </div>
+      
+      {/* Foreground draggable card */}
+      <motion.div
+        drag="x"
+        dragConstraints={{ right: 0, left: -64 }}
+        dragElastic={{ right: 0.05, left: 0.15 }}
+        dragSnapToOrigin={true}
+        onDragEnd={(event, info) => {
+          if (info.offset.x < -48) {
+            onDelete(entry.id);
+          }
+        }}
+        className="absolute inset-0 bg-zinc-900/95 border border-zinc-800/80 rounded-xl px-4 py-2 flex items-center justify-between touch-pan-y"
+      >
+        <span className="text-[11px] text-zinc-500 font-mono">{entry.date}</span>
+        <span className="text-xs font-extrabold text-white">{entry.weight} kg</span>
+      </motion.div>
+    </div>
+  );
+}
 
 export default function WeightChart({ 
   profileId, 
@@ -13,6 +52,7 @@ export default function WeightChart({
   const [entries, setEntries] = useState<WeightEntry[]>([]);
   const [newWeight, setNewWeight] = useState("");
   const [adding, setAdding] = useState(false);
+  const { enqueueSyncAction } = useForgeStore();
 
   const fetchEntries = async () => {
     const res = await fetch(`/api/profiles/${profileId}/weight-history`);
@@ -29,14 +69,53 @@ export default function WeightChart({
       setAdding(false);
       return;
     }
-    await fetch(`/api/profiles/${profileId}/weight-history`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ weight: parsedWeight, date: new Date().toISOString().split('T')[0] })
-    });
+
+    const dateStr = new Date().toISOString().split('T')[0];
+    const tempId = `wh_temp_${Date.now()}`;
+    const optimisticEntry: WeightEntry = {
+      id: tempId,
+      profile_id: profileId,
+      weight: parsedWeight,
+      date: dateStr,
+      timestamp: Date.now()
+    };
+
+    // OPTIMISTIC UPDATE
+    setEntries(prev => [...prev, optimisticEntry]);
     setNewWeight("");
     setAdding(false);
-    await fetchEntries();
     if (onWeightLogged) onWeightLogged();
+
+    const url = `/api/profiles/${profileId}/weight-history`;
+    const body = { weight: parsedWeight, date: dateStr };
+
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+      });
+      if (!res.ok) throw new Error("Gagal menyimpan ke server");
+      await fetchEntries();
+    } catch (err) {
+      enqueueSyncAction(url, "POST", body, `Log berat badan ${parsedWeight} kg`);
+    }
+  };
+
+  const deleteEntry = async (id: string) => {
+    // OPTIMISTIC UPDATE
+    setEntries(prev => prev.filter(e => e.id !== id));
+    if (onWeightLogged) onWeightLogged();
+
+    const url = `/api/profiles/${profileId}/weight-history/${id}`;
+
+    try {
+      const res = await fetch(url, { method: "DELETE" });
+      if (!res.ok) throw new Error("Gagal menghapus di server");
+      await fetchEntries();
+    } catch (err) {
+      enqueueSyncAction(url, "DELETE", null, `Hapus riwayat berat badan`);
+    }
   };
 
   const sorted = [...entries].sort((a, b) => a.timestamp - b.timestamp).slice(-10);
@@ -131,17 +210,26 @@ export default function WeightChart({
         </button>
       </div>
 
-      {/* Quick History List Cards */}
+      {/* Quick History List Cards (Vertical list with Swipe to Delete) */}
       {sorted.length > 0 && (
         <div className="border-t border-zinc-800/60 pt-3 mt-1">
-          <span className="text-[10px] text-zinc-500 uppercase tracking-widest font-bold block mb-2">Riwayat Terakhir</span>
-          <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
-            {sorted.slice().reverse().slice(0, 5).map(e => (
-              <div key={e.id} className="bg-zinc-900/60 border border-zinc-800/80 rounded-xl px-3 py-1.5 min-w-[70px] shrink-0 text-center">
-                <span className="text-xs font-extrabold text-white block">{e.weight} kg</span>
-                <span className="text-[9px] text-zinc-500 font-mono">{e.date}</span>
-              </div>
-            ))}
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[10px] text-zinc-500 uppercase tracking-widest font-bold block">Riwayat Terakhir</span>
+            <span className="text-[9px] text-zinc-500 font-mono">Geser kiri untuk hapus</span>
+          </div>
+          <div className="space-y-2 max-h-48 overflow-y-auto pr-1 no-scrollbar">
+            <AnimatePresence initial={false}>
+              {sorted.slice().reverse().slice(0, 5).map(e => (
+                <motion.div
+                  key={e.id}
+                  initial={{ opacity: 1, height: 44 }}
+                  exit={{ opacity: 0, height: 0, marginBottom: 0, overflow: 'hidden' }}
+                  transition={{ duration: 0.2 }}
+                >
+                  <SwipeEntry entry={e} onDelete={deleteEntry} />
+                </motion.div>
+              ))}
+            </AnimatePresence>
           </div>
         </div>
       )}
