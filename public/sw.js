@@ -88,3 +88,35 @@ self.addEventListener('notificationclick', (event) => {
     })
   );
 });
+
+// Background Timer for Rest Timer
+let timerTimeout = null;
+
+self.addEventListener('message', (event) => {
+  if (event.data?.type === 'START_REST_TIMER') {
+    const { endTime, title, body } = event.data;
+    const delay = endTime - Date.now();
+    
+    if (timerTimeout) clearTimeout(timerTimeout);
+    
+    if (delay > 0) {
+      timerTimeout = setTimeout(() => {
+        self.registration.showNotification(title || 'Rest Selesai! 💪', {
+          body: body || 'Waktunya lanjut latihan! Yuk gaspol!',
+          icon: '/icon.svg',
+          badge: '/icon.svg',
+          vibrate: [200, 100, 200, 100, 300],
+          tag: 'rest-timer',
+          renotify: true,
+          requireInteraction: true,
+          data: { url: self.location.origin }
+        });
+      }, delay);
+    }
+  }
+  
+  if (event.data?.type === 'CANCEL_REST_TIMER') {
+    if (timerTimeout) clearTimeout(timerTimeout);
+    timerTimeout = null;
+  }
+});

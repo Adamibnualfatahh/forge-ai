@@ -1097,12 +1097,45 @@ INSTRUKSI KHUSUS:
 app.post("/api/scan-equipment", async (req, res) => {
   const { image } = req.body; 
   if (!image) return res.status(400).json({ error: "Foto harus disertakan." });
-  res.json({
-    name: "Leg Press Machine (Demo)",
-    description: "Alat gym untuk melatih otot tubuh bagian bawah.",
-    target_muscles: "Quadriceps, Glutes, Hamstrings.",
-    proper_form: "Duduk tegak, dorong plat dengan tumit."
-  });
+
+  try {
+    const ai = getAi();
+    const prompt = `Analisis gambar alat gym ini. Berikan response dalam format JSON:
+    {
+      "name": "Nama alat gym",
+      "description": "Deskripsi singkat alat dan fungsinya",
+      "target_muscles": "Otot-otot target utama",
+      "proper_form": "Langkah-langkah cara penggunaan yang benar (pisahkan dengan newline)"
+    }
+    Jika bukan gambar alat gym, respond: { "error": "Gambar bukan alat gym" }`;
+
+    const base64Data = image.includes(",") ? image.split(",")[1] : image;
+
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: [
+        {
+          role: "user",
+          parts: [
+            { text: prompt },
+            { inlineData: { mimeType: "image/jpeg", data: base64Data } }
+          ]
+        }
+      ],
+      config: {
+        responseMimeType: "application/json"
+      }
+    });
+
+    const text = response.text || "";
+    const parsed = JSON.parse(text.trim());
+    if (parsed.error) return res.status(400).json(parsed);
+
+    res.json(parsed);
+  } catch (err) {
+    console.error("Scan equipment error:", err);
+    res.status(500).json({ error: "Gagal menganalisis gambar. Coba lagi." });
+  }
 });
 
 // 11. Update Profile

@@ -527,8 +527,9 @@ export default function WorkoutLogger({
             </label>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-            <div className="relative w-full sm:col-span-1">
+          <div className="space-y-3">
+            <div className="relative w-full">
+              <label className="block text-[12px] text-zinc-400 font-bold mb-1 uppercase">Nama Gerakan</label>
               <input 
                 type="text"
                 placeholder="Cari atau ketik gerakan..."
@@ -553,22 +554,37 @@ export default function WorkoutLogger({
             </div>
             
             {customExerciseIsCardio ? (
-              <input 
-                type="number"
-                placeholder="Durasi"
-                value={customExerciseDuration}
-                onChange={(e) => setCustomExerciseDuration(e.target.value)}
-                className="w-full bg-[#201f1f] border border-zinc-700/80 rounded h-10 px-2.5 text-xs text-white"
-              />
+              <div>
+                <label className="block text-[12px] text-zinc-400 font-bold mb-1 uppercase">Durasi (Menit)</label>
+                <input 
+                  type="number"
+                  placeholder="30"
+                  value={customExerciseDuration}
+                  onChange={(e) => setCustomExerciseDuration(e.target.value)}
+                  className="w-full bg-[#201f1f] border border-zinc-700/80 rounded h-10 px-2.5 text-xs text-white"
+                />
+              </div>
             ) : (
-              <div className="grid grid-cols-3 gap-1.5 sm:col-span-1">
-                <input type="number" placeholder="Sets" value={customExerciseSets} onChange={(e) => setCustomExerciseSets(e.target.value)} className="w-full bg-[#201f1f] border border-zinc-700/80 rounded h-10 px-2.5 text-xs text-white" />
-                <input type="text" placeholder="Reps" value={customExerciseReps} onChange={(e) => setCustomExerciseReps(e.target.value)} className="w-full bg-[#201f1f] border border-zinc-700/80 rounded h-10 px-2.5 text-xs text-white" />
-                <input type="number" step="any" placeholder="kg" value={customExerciseWeight} onChange={(e) => setCustomExerciseWeight(e.target.value)} className="w-full bg-[#201f1f] border border-zinc-700/80 rounded h-10 px-2.5 text-xs text-[#c3f400]" />
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="block text-[12px] text-zinc-400 font-bold mb-1 uppercase text-center">Sets</label>
+                  <input type="number" placeholder="4" value={customExerciseSets} onChange={(e) => setCustomExerciseSets(e.target.value)} className="w-full bg-[#201f1f] border border-zinc-700/80 rounded h-10 px-2.5 text-xs text-white text-center" />
+                </div>
+                <div>
+                  <label className="block text-[12px] text-zinc-400 font-bold mb-1 uppercase text-center">Reps</label>
+                  <input type="text" placeholder="12" value={customExerciseReps} onChange={(e) => setCustomExerciseReps(e.target.value)} className="w-full bg-[#201f1f] border border-zinc-700/80 rounded h-10 px-2.5 text-xs text-white text-center" />
+                </div>
+                <div>
+                  <label className="block text-[12px] text-zinc-400 font-bold mb-1 uppercase text-center">Beban kg</label>
+                  <input type="number" step="any" placeholder="0" value={customExerciseWeight} onChange={(e) => setCustomExerciseWeight(e.target.value)} className="w-full bg-[#201f1f] border border-zinc-700/80 rounded h-10 px-2.5 text-xs text-[#c3f400] text-center" />
+                </div>
               </div>
             )}
 
-            <input type="text" placeholder="Catatan" value={customExerciseNotes} onChange={(e) => setCustomExerciseNotes(e.target.value)} className="w-full sm:col-span-1 bg-[#201f1f] border border-zinc-700/80 rounded h-10 px-2.5 text-xs text-white" />
+            <div>
+              <label className="block text-[12px] text-zinc-400 font-bold mb-1 uppercase">Catatan / Note</label>
+              <input type="text" placeholder="Catatan tambahan..." value={customExerciseNotes} onChange={(e) => setCustomExerciseNotes(e.target.value)} className="w-full bg-[#201f1f] border border-zinc-700/80 rounded h-10 px-2.5 text-xs text-white" />
+            </div>
           </div>
           
           <button onClick={handleAddCustomExercise} className="font-sans text-xs font-black bg-zinc-800 hover:bg-zinc-700 hover:text-white text-[#c3f400] h-10 px-4 rounded w-full flex items-center justify-center gap-1 border border-zinc-700">

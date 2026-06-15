@@ -652,22 +652,16 @@ export default function App() {
 
       if (res.ok) {
         const data = await res.json();
-        setLoggerExercises(data.exercises);
-        setLoggerExercises((prev) => {
-          // If exercises empty, fallback
-          if (prev.length === 0) {
-            return [
-              { name: "Barbell Squats", sets: 4, reps: "10", notes: "Latihan asik sejuta umat." }
-            ];
-          }
-          return prev;
-        });
+        const exercises = Array.isArray(data.exercises) && data.exercises.length > 0
+          ? data.exercises
+          : [{ name: "Barbell Squats", sets: 4, reps: "10", notes: "Latihan default (fallback)." }];
+        setLoggerExercises(exercises);
         
         // Populate current logger focus
         const planFocus = data.focus || "Custom Plan";
         setTodayPlan({
           focus: planFocus,
-          exercises: data.exercises
+          exercises: exercises
         });
         // Smooth scroll to exercises
         setTimeout(() => exercisesListRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);

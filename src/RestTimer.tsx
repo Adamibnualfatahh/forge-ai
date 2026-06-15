@@ -22,7 +22,7 @@ export default function RestTimer() {
   const playIOSNotification = (type: 'warning' | 'finished') => {
     if ('vibrate' in navigator) {
       if (type === 'warning') navigator.vibrate([10, 50, 10]);
-      else navigator.vibrate([200, 100, 200]);
+      else navigator.vibrate([200, 100, 200, 100, 300]);
     }
     
     try {
@@ -57,14 +57,33 @@ export default function RestTimer() {
     }
   }, []);
 
+  // Set background timer in Service Worker
+  useEffect(() => {
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.ready.then(reg => {
+        if (running && restTimer.endTime) {
+          reg.active?.postMessage({
+            type: 'START_REST_TIMER',
+            endTime: restTimer.endTime
+          });
+        } else if (!running) {
+          reg.active?.postMessage({ type: 'CANCEL_REST_TIMER' });
+        }
+      });
+    }
+  }, [running, restTimer.endTime]);
+
   // Show browser notification
   const showBrowserNotification = () => {
-    const title = 'Rest Selesai!';
+    const title = 'Rest Selesai! 💪';
     const options = {
       body: 'Waktunya lanjut latihan! Yuk gaspol!',
       icon: '/icon.svg',
-      vibrate: [200, 100, 200],
+      vibrate: [200, 100, 200, 100, 300],
       badge: '/icon.svg',
+      tag: 'rest-timer',
+      renotify: true,
+      requireInteraction: true,
       data: { url: window.location.origin }
     };
 

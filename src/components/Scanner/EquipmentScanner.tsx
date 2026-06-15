@@ -61,11 +61,16 @@ export default function EquipmentScanner({
     setScannerResult(null);
 
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
+
       const res = await fetch("/api/scan-equipment", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ image: scannerImage })
+        body: JSON.stringify({ image: scannerImage }),
+        signal: controller.signal
       });
+      clearTimeout(timeoutId);
 
       if (res.ok) {
         const data = await res.json();
@@ -74,9 +79,13 @@ export default function EquipmentScanner({
         const errData = await res.json();
         setScannerError(errData.error || "Gagal memindai alat gym.");
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      setScannerError("Gagal menghubungi server untuk memindai alat.");
+      if (err.name === 'AbortError') {
+        setScannerError("Waktu habis saat menganalisis gambar. Coba lagi dengan resolusi lebih rendah.");
+      } else {
+        setScannerError("Gagal menghubungi server untuk memindai alat.");
+      }
     } finally {
       setIsScanning(false);
     }
