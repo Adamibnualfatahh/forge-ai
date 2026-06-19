@@ -3,5 +3,8 @@
   "outputDirectory": "dist",
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api" }
+  ],
+  "crons": [
+    { "path": "/api/cron/rest-day-reminder", "schedule": "0 11 * * *" }
   ]
 }

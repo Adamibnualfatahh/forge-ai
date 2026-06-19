@@ -156,6 +156,11 @@ export const EXERCISE_DB: ExerciseInfo[] = [
   // Core
   { name: "Plank", muscle: "Core", image: muscleImages.abs, category: 'core' },
   { name: "Cable Crunch", muscle: "Abs", image: muscleImages.abs, category: 'core' },
+  { name: "Abdominal Machine", muscle: "Abs", image: muscleImages.abs, category: 'core' },
+  { name: "Ab Crunch Machine", muscle: "Abs", image: muscleImages.abs, category: 'core' },
+  { name: "Seated Crunch Machine", muscle: "Abs", image: muscleImages.abs, category: 'core' },
+  { name: "Captain's Chair Leg Raise", muscle: "Lower Abs", image: muscleImages.abs, category: 'core' },
+  { name: "Sit Up", muscle: "Abs", image: muscleImages.abs, category: 'core' },
   { name: "Hanging Leg Raise", muscle: "Lower Abs", image: muscleImages.abs, category: 'core' },
   { name: "Russian Twist", muscle: "Obliques", image: muscleImages.abs, category: 'core' },
   { name: "Ab Wheel Rollout", muscle: "Core", image: muscleImages.abs, category: 'core' },
@@ -248,8 +253,65 @@ export function searchExercises(query: string): ExerciseInfo[] {
   return EXERCISE_DB.filter(e => e.name.toLowerCase().includes(q) || e.muscle.toLowerCase().includes(q) || e.category.includes(q));
 }
 
+// Generic equipment/position words that should NOT drive a match on their own.
+// Without this, "Abdominal Machine" wrongly matched "Machine Chest Press".
+const GENERIC_TOKENS = new Set([
+  'machine', 'cable', 'barbell', 'dumbbell', 'smith', 'seated', 'standing',
+  'lying', 'bar', 'weighted', 'assisted', 'single', 'arm', 'one', 'two',
+  'with', 'grip', 'close', 'wide', 'front', 'rope', 'band', 'flat', 'the', 'of', 'on',
+]);
+
+// Treat these tokens as equivalent so "Abs"/"Abdominal"/"Core" all match core entries.
+const TOKEN_SYNONYMS: Record<string, string> = {
+  abs: 'ab', abdominal: 'ab', abdominals: 'ab', core: 'ab',
+  obliques: 'oblique', glute: 'glutes', bicep: 'biceps', tricep: 'triceps',
+  legs: 'leg', quad: 'quads', hammy: 'hamstrings', hamstring: 'hamstrings',
+};
+
+function tokenizeExercise(name: string): string[] {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+    .split(' ')
+    .filter(Boolean)
+    .map(t => TOKEN_SYNONYMS[t] || t);
+}
+
 export function getExerciseInfo(name: string): ExerciseInfo | undefined {
-  const lower = name.toLowerCase();
-  return EXERCISE_DB.find(e => e.name.toLowerCase() === lower)
-    || EXERCISE_DB.find(e => lower.includes(e.name.toLowerCase().split(' ')[0]) || e.name.toLowerCase().includes(lower.split(' ')[0]));
+  const lower = name.trim().toLowerCase();
+  if (!lower) return undefined;
+
+  // 1. Exact name match (fast path)
+  const exact = EXERCISE_DB.find(e => e.name.toLowerCase() === lower);
+  if (exact) return exact;
+
+  // 2. Token-overlap scoring. Generic equipment words are excluded so that a
+  //    shared word like "machine" can never decide the match. This prevents
+  //    bugs such as "Abdominal Machine" being categorized as chest.
+  const inputTokens = tokenizeExercise(lower).filter(t => !GENERIC_TOKENS.has(t));
+  if (inputTokens.length === 0) return undefined;
+
+  let best: ExerciseInfo | undefined;
+  let bestScore = 0;
+  for (const e of EXERCISE_DB) {
+    const eTokens = tokenizeExercise(e.name).filter(t => !GENERIC_TOKENS.has(t));
+    if (eTokens.length === 0) continue;
+    let score = 0;
+    for (const t of inputTokens) {
+      if (eTokens.includes(t)) {
+        score += 2; // exact significant-token match
+      } else if (eTokens.some(et => et.startsWith(t) || t.startsWith(et))) {
+        score += 1; // prefix match (e.g. "ab" vs "abductor" is filtered out below by threshold)
+      }
+    }
+    if (score > bestScore) {
+      bestScore = score;
+      best = e;
+    }
+  }
+
+  // Require at least one solid shared token (score >= 2). Otherwise return
+  // undefined so the caller falls back to 'other' instead of a wrong category.
+  return bestScore >= 2 ? best : undefined;
 }

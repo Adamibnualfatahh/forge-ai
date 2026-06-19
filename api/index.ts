@@ -4,6 +4,7 @@ import { createClient } from "@libsql/client";
 import { GoogleGenAI, Type } from "@google/genai";
 import multer from "multer";
 import { XMLParser } from "fast-xml-parser";
+import { ensurePushSchema, registerPushRoutes } from "./push";
 
 dotenv.config();
 
@@ -243,9 +244,11 @@ async function initDb() {
       )
     `);
 
+    // Web Push subscriptions table
+    await ensurePushSchema(db);
+
     // Verify and seed default profiles
-    const existing = await db.execute("SELECT * FROM profiles");
-    if (existing.rows.length === 0) {
+    const existing = await db.execute("SELECT * FROM profiles");    if (existing.rows.length === 0) {
       await db.execute({
         sql: `INSERT INTO profiles (id, name, avatar, height, weight, target_weight, focus_area, streak, total_sessions) 
               VALUES (:id, :name, :avatar, :height, :weight, :target_weight, :focus_area, :streak, :total_sessions)`,
@@ -1493,5 +1496,8 @@ app.get("/api/profiles/:id/export-csv", async (req, res) => {
     res.send(csv);
   } catch (e) { res.status(500).json({ error: "Failed" }); }
 });
+
+// Web Push (VAPID) routes: subscribe, unsubscribe, public key, cron sender
+registerPushRoutes(app, getDb);
 
 export default app;

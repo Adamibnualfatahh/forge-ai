@@ -11,6 +11,8 @@ import {
   Plus, 
   MessageSquare, 
   Settings, 
+  Bell,
+  BellOff,
   Flame, 
   Calendar, 
   ChevronLeft, 
@@ -205,21 +207,150 @@ export default function App() {
     showToast("PDF berhasil diexport!");
   };
 
-  // Push notification reminder
+  // Rest-day reminder shown while the app is open. Only fires when the user has
+  // opted in via the notification toggle (so we never auto-prompt on load).
+  // Routed through the service worker so it also works on mobile PWAs, where the
+  // `new Notification()` constructor is not allowed and throws.
   useEffect(() => {
     if (!activeProfile || !('Notification' in window)) return;
-    if (Notification.permission === 'default') Notification.requestPermission();
-    if (Notification.permission === 'granted' && logs.length > 0) {
-      const daysSince = Math.floor((Date.now() - new Date(logs[0].date + 'T00:00:00').getTime()) / 86400000);
-      if (daysSince >= 2) {
-        const key = `forge-notif-${logs[0].date}`;
-        if (!localStorage.getItem(key)) {
-          new Notification('Forge AI', { body: `Sudah ${daysSince} hari belum latihan. Yuk gaspol, ${activeProfile.name}!`, icon: '/icon.svg' });
-          localStorage.setItem(key, '1');
+    if (localStorage.getItem('forge-push-enabled') !== '1') return;
+    if (Notification.permission !== 'granted' || logs.length === 0) return;
+
+    const daysSince = Math.floor((Date.now() - new Date(logs[0].date + 'T00:00:00').getTime()) / 86400000);
+    if (daysSince < 2) return;
+
+    const key = `forge-notif-${logs[0].date}`;
+    if (localStorage.getItem(key)) return;
+
+    const title = 'Forge AI';
+    const options = {
+      body: `Sudah ${daysSince} hari belum latihan. Yuk gaspol, ${activeProfile.name}!`,
+      icon: '/icon.svg',
+      badge: '/icon.svg',
+      tag: 'forge-rest-day-reminder',
+    };
+
+    const showReminder = async () => {
+      try {
+        if ('serviceWorker' in navigator) {
+          const reg = await navigator.serviceWorker.ready;
+          await reg.showNotification(title, options);
+        } else {
+          new Notification(title, options);
         }
+        localStorage.setItem(key, '1');
+      } catch (err) {
+        console.error('Failed to show rest-day reminder', err);
       }
-    }
+    };
+    showReminder();
   }, [activeProfile, logs]);
+
+  // --- Web Push: opt-in reminders that work even when the PWA is closed ---
+  const pushSupported = typeof window !== 'undefined'
+    && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+  const [pushEnabled, setPushEnabled] = useState<boolean>(() => localStorage.getItem('forge-push-enabled') === '1');
+  const [pushBusy, setPushBusy] = useState(false);
+
+  const urlBase64ToUint8Array = (base64String: string): Uint8Array => {
+    const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+    const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+    const raw = atob(base64);
+    const output = new Uint8Array(raw.length);
+    for (let i = 0; i < raw.length; ++i) output[i] = raw.charCodeAt(i);
+    return output;
+  };
+
+  // Subscribe this device and register it with the backend.
+  // Returns 'ok' | 'denied' | 'unconfigured' | 'unsupported'.
+  const subscribeToPush = async (profileId: string): Promise<'ok' | 'denied' | 'unconfigured' | 'unsupported'> => {
+    if (!pushSupported) return 'unsupported';
+    if (Notification.permission === 'default') {
+      const perm = await Notification.requestPermission();
+      if (perm !== 'granted') return 'denied';
+    }
+    if (Notification.permission !== 'granted') return 'denied';
+
+    const reg = await navigator.serviceWorker.ready;
+    reg.active?.postMessage({ type: 'SET_PROFILE_ID', profileId });
+
+    const keyRes = await fetch('/api/push/vapid-public-key');
+    if (!keyRes.ok) return 'unconfigured';
+    const { publicKey } = await keyRes.json();
+    if (!publicKey) return 'unconfigured';
+
+    let subscription = await reg.pushManager.getSubscription();
+    if (!subscription) {
+      subscription = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(publicKey),
+      });
+    }
+    await fetch(`/api/profiles/${profileId}/push-subscribe`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ subscription }),
+    });
+    return 'ok';
+  };
+
+  const unsubscribeFromPush = async (profileId: string): Promise<void> => {
+    if (!pushSupported) return;
+    const reg = await navigator.serviceWorker.ready;
+    const subscription = await reg.pushManager.getSubscription();
+    if (!subscription) return;
+    const endpoint = subscription.endpoint;
+    await subscription.unsubscribe().catch(() => {});
+    await fetch(`/api/profiles/${profileId}/push-unsubscribe`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ endpoint }),
+    }).catch(() => {});
+  };
+
+  const handleTogglePush = async () => {
+    if (!activeProfile || pushBusy) return;
+    if (!pushSupported) {
+      alert('Perangkat/browser ini tidak mendukung notifikasi push.');
+      return;
+    }
+    setPushBusy(true);
+    try {
+      if (!pushEnabled) {
+        const result = await subscribeToPush(activeProfile.id);
+        if (result === 'ok') {
+          setPushEnabled(true);
+          localStorage.setItem('forge-push-enabled', '1');
+        } else if (result === 'denied') {
+          alert('Izin notifikasi ditolak. Aktifkan izin notifikasi untuk Forge AI di pengaturan browser/HP.');
+        } else if (result === 'unconfigured') {
+          alert('Push belum dikonfigurasi di server (VAPID keys belum di-set). Lihat docs/PUSH_NOTIFICATIONS.md.');
+        }
+      } else {
+        await unsubscribeFromPush(activeProfile.id);
+        setPushEnabled(false);
+        localStorage.setItem('forge-push-enabled', '0');
+      }
+    } catch (err) {
+      console.error('Toggle push failed', err);
+      alert('Gagal mengubah pengaturan notifikasi. Coba lagi.');
+    } finally {
+      setPushBusy(false);
+    }
+  };
+
+  // Keep the device subscription fresh on launch when reminders are enabled.
+  useEffect(() => {
+    if (!activeProfile || !pushEnabled || !pushSupported) return;
+    subscribeToPush(activeProfile.id).then((result) => {
+      // If the user revoked permission outside the app, reflect that locally.
+      if (result === 'denied') {
+        setPushEnabled(false);
+        localStorage.setItem('forge-push-enabled', '0');
+      }
+    }).catch((err) => console.error('Push re-subscribe failed', err));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeProfile, pushEnabled]);
 
   const [shareData, setShareData] = useState<{ focus: string; duration: number; exercises: Exercise[]; volume: number } | null>(null);
 
@@ -2215,6 +2346,24 @@ export default function App() {
                   className="w-full flex items-center justify-center gap-2 border border-zinc-700 text-zinc-300 hover:text-[#c3f400] hover:border-[#c3f400]/50 font-semibold py-3 rounded-xl text-xs uppercase tracking-wider transition-colors">
                   <Activity className="w-4 h-4" />
                   Kelola Apple Health
+                </button>
+                {/* Push notification toggle */}
+                <button onClick={handleTogglePush} disabled={pushBusy || !pushSupported}
+                  className={`w-full flex items-center justify-between gap-2 border rounded-xl px-4 py-3 transition-colors ${pushEnabled ? 'border-[#c3f400]/50 text-[#c3f400]' : 'border-zinc-700 text-zinc-300'} ${(pushBusy || !pushSupported) ? 'opacity-50 cursor-not-allowed' : 'hover:border-[#c3f400]/50'}`}>
+                  <span className="flex items-center gap-2">
+                    {pushEnabled ? <Bell className="w-4 h-4" /> : <BellOff className="w-4 h-4" />}
+                    <span className="text-left">
+                      <span className="block text-xs uppercase tracking-wider font-semibold">Pengingat Latihan</span>
+                      <span className="block text-[10px] text-zinc-500 normal-case tracking-normal">
+                        {!pushSupported ? 'Tidak didukung di perangkat ini'
+                          : pushBusy ? 'Memproses...'
+                          : pushEnabled ? 'Aktif — notifikasi saat lama tak latihan' : 'Nonaktif'}
+                      </span>
+                    </span>
+                  </span>
+                  <span className={`relative w-10 h-6 rounded-full transition-colors shrink-0 ${pushEnabled ? 'bg-[#c3f400]' : 'bg-zinc-700'}`}>
+                    <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-black transition-transform ${pushEnabled ? 'translate-x-4' : ''}`}></span>
+                  </span>
                 </button>
                 <div className="border-t border-zinc-800 pt-3">
                   {!confirmDeleteProfile ? (

@@ -5,6 +5,7 @@ import { createServer as createViteServer } from "vite";
 import { createClient } from "@libsql/client";
 import { GoogleGenAI, Type } from "@google/genai";
 import Redis from "ioredis";
+import { ensurePushSchema, registerPushRoutes } from "./api/push";
 
 dotenv.config();
 
@@ -269,6 +270,9 @@ async function initDb() {
         deleted INTEGER DEFAULT 0
       )
     `);
+
+    // Web Push subscriptions table
+    await ensurePushSchema(db);
 
     // Verify and seed default profiles
     const existing = await db.execute("SELECT * FROM profiles");
@@ -1311,6 +1315,9 @@ app.post("/api/profiles/:id/apple-health", async (req, res) => {
     res.status(500).json({ error: "Failed" });
   }
 });
+
+// Web Push (VAPID) routes: subscribe, unsubscribe, public key, cron sender
+registerPushRoutes(app, getDb);
 
 async function startServer() {
   if (process.env.NODE_ENV !== "production") {
