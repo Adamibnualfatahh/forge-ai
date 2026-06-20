@@ -1,27 +1,46 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
   <defs>
-    <!-- Premium near-black background with a subtle center lift for depth -->
-    <radialGradient id="bg" cx="0.5" cy="0.42" r="0.78">
-      <stop offset="0" stop-color="#1b1d1a" />
-      <stop offset="1" stop-color="#0a0b0a" />
+    <radialGradient id="bg" cx="0.5" cy="0.4" r="0.8">
+      <stop offset="0" stop-color="#1d201b" />
+      <stop offset="1" stop-color="#090a09" />
     </radialGradient>
-    <!-- Brand lime with a soft top-to-bottom sheen -->
-    <linearGradient id="lime" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#d6ff45" />
-      <stop offset="1" stop-color="#b6e600" />
+    <!-- bright front face of the stem -->
+    <linearGradient id="stem" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#eaff6e" />
+      <stop offset="0.5" stop-color="#c3f400" />
+      <stop offset="1" stop-color="#93c400" />
+    </linearGradient>
+    <!-- deeper ribbon tone for the arms -->
+    <linearGradient id="arm" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#b6e600" />
+      <stop offset="1" stop-color="#6f9a00" />
+    </linearGradient>
+    <!-- fold shadow where an arm passes behind the stem -->
+    <linearGradient id="fold" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#324600" stop-opacity="0.65" />
+      <stop offset="1" stop-color="#324600" stop-opacity="0" />
+    </linearGradient>
+    <!-- crisp top highlight -->
+    <linearGradient id="hi" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.5" />
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0" />
     </linearGradient>
   </defs>
 
   <!-- Full-bleed background (OS applies the rounded/squircle mask) -->
   <rect width="512" height="512" fill="url(#bg)" />
 
-  <!-- Bold "F" monogram, centered within the maskable safe zone -->
-  <g fill="url(#lime)">
-    <!-- vertical stem -->
-    <rect x="186" y="146" width="46" height="220" rx="13" />
-    <!-- top arm -->
-    <rect x="186" y="146" width="140" height="46" rx="13" />
-    <!-- middle arm -->
-    <rect x="186" y="234" width="104" height="44" rx="13" />
+  <!-- Large bold "F": arms drawn first (deeper tone) so they read as ribbons behind the bright stem -->
+  <g>
+    <rect x="164" y="112" width="184" height="70" rx="8" fill="url(#arm)" />
+    <rect x="164" y="230" width="138" height="66" rx="8" fill="url(#arm)" />
+    <!-- fold shadow cast by the stem onto each arm -->
+    <rect x="236" y="112" width="28" height="70" fill="url(#fold)" />
+    <rect x="236" y="230" width="28" height="66" fill="url(#fold)" />
+    <!-- bright stem on top -->
+    <rect x="164" y="112" width="72" height="288" rx="8" fill="url(#stem)" />
+    <!-- highlights -->
+    <rect x="171" y="119" width="58" height="9" rx="4" fill="url(#hi)" />
+    <rect x="171" y="119" width="12" height="272" rx="6" fill="url(#hi)" opacity="0.5" />
   </g>
 </svg>
