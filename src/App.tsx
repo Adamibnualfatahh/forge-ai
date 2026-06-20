@@ -55,7 +55,7 @@ import WeightChart from "./WeightChart";
 import WorkoutTemplates from "./WorkoutTemplates";
 import GoalSetting from "./GoalSetting";
 import ProgressiveOverload from "./ProgressiveOverload";
-import { getExerciseInfo, searchExercises, EXERCISE_DB, ExerciseInfo } from "./exerciseDb";
+import { getExerciseInfo, searchExercises, EXERCISE_DB, ExerciseInfo, filterExercises, getMovementTypes, getEquipmentTypes, MOVEMENT_TYPE_LABELS, EQUIPMENT_LABELS, MovementType, EquipmentType } from "./exerciseDb";
 import MuscleIcon from "./MuscleIcon";
 import ShareCard from "./ShareCard";
 import AppleHealth from "./AppleHealth";
@@ -118,6 +118,9 @@ export default function App() {
 
   // Exercise search
   const [exSearchQuery, setExSearchQuery] = useState("");
+  const [exFilterCategory, setExFilterCategory] = useState<string>("all");
+  const [exFilterMovement, setExFilterMovement] = useState<MovementType | "all">("all");
+  const [exFilterEquipment, setExFilterEquipment] = useState<EquipmentType | "all">("all");
   const [showExSearch, setShowExSearch] = useState(false);
 
   // Share card after workout
@@ -846,7 +849,9 @@ export default function App() {
         equipment: loggerEquipment.join(", "),
         exercises: loggerExercises,
         calories_burned: mockCalories,
-        avg_bpm: mockBpm
+        avg_bpm: mockBpm,
+        time_start: loggerTimeStart || undefined,
+        time_end: loggerTimeEnd || undefined
       };
 
       const url = `/api/profiles/${activeProfile.id}/logs`;
@@ -2288,15 +2293,36 @@ export default function App() {
                 <div className="w-10 h-1 bg-zinc-700 rounded-full"></div>
               </div>
 
-              <div className="p-4 pt-2 border-b border-zinc-800 flex items-center gap-3">
-                <input type="text" placeholder="Cari exercise..." value={exSearchQuery} onChange={e => setExSearchQuery(e.target.value)} autoFocus
-                  className="flex-1 bg-zinc-900 border border-zinc-800 rounded-xl h-10 px-3 text-sm text-white" />
-                <button onClick={() => { setShowExSearch(false); setExSearchQuery(""); }} className="text-zinc-400 p-2">
-                  <X className="w-5 h-5" />
-                </button>
+              <div className="p-4 pt-2 border-b border-zinc-800 flex flex-col gap-3">
+                <div className="flex items-center gap-3">
+                  <input type="text" placeholder="Cari exercise..." value={exSearchQuery} onChange={e => setExSearchQuery(e.target.value)} autoFocus
+                    className="flex-1 bg-zinc-900 border border-zinc-800 rounded-xl h-10 px-3 text-sm text-white" />
+                  <button onClick={() => { setShowExSearch(false); setExSearchQuery(""); setExFilterCategory("all"); setExFilterMovement("all"); setExFilterEquipment("all"); }} className="text-zinc-400 p-2">
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+                <div className="flex gap-2 overflow-x-auto pb-1 hide-scrollbar">
+                  <select value={exFilterCategory} onChange={e => setExFilterCategory(e.target.value)} className="bg-zinc-900 border border-zinc-800 text-xs text-white rounded-lg px-2 py-1.5 outline-none">
+                    <option value="all">Semua Otot</option>
+                    {['chest','back','shoulders','arms','legs','core','cardio'].map(c => <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>)}
+                  </select>
+                  <select value={exFilterMovement} onChange={e => setExFilterMovement(e.target.value as any)} className="bg-zinc-900 border border-zinc-800 text-xs text-white rounded-lg px-2 py-1.5 outline-none">
+                    <option value="all">Semua Tipe</option>
+                    {getMovementTypes().map(m => <option key={m} value={m}>{MOVEMENT_TYPE_LABELS[m]}</option>)}
+                  </select>
+                  <select value={exFilterEquipment} onChange={e => setExFilterEquipment(e.target.value as any)} className="bg-zinc-900 border border-zinc-800 text-xs text-white rounded-lg px-2 py-1.5 outline-none">
+                    <option value="all">Semua Alat</option>
+                    {getEquipmentTypes().map(e => <option key={e} value={e}>{EQUIPMENT_LABELS[e]}</option>)}
+                  </select>
+                </div>
               </div>
               <div className="flex-1 overflow-y-auto p-3 space-y-1">
-                {searchExercises(exSearchQuery).map(ex => (
+                {filterExercises({
+                  query: exSearchQuery,
+                  category: exFilterCategory,
+                  movementType: exFilterMovement === "all" ? undefined : exFilterMovement as MovementType,
+                  equipment: exFilterEquipment === "all" ? undefined : exFilterEquipment as EquipmentType
+                }).map(ex => (
                   <button key={ex.name} onClick={() => {
                     setLoggerExercises(prev => [...prev, { name: ex.name, sets: 3, reps: "12", notes: ex.muscle, is_cardio: ex.category === 'cardio', duration_minutes: ex.category === 'cardio' ? 30 : undefined }]);
                     setShowExSearch(false); setExSearchQuery("");

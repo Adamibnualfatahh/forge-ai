@@ -1,8 +1,13 @@
+export type MovementType = 'compound' | 'isolation' | 'cardio' | 'static' | 'plyometric' | 'olympic' | 'calisthenics';
+export type EquipmentType = 'barbell' | 'dumbbell' | 'cable' | 'machine' | 'bodyweight' | 'kettlebell' | 'band' | 'plate' | 'smith_machine' | 'ez_bar' | 'trap_bar' | 'sled' | 'other';
+
 export interface ExerciseInfo {
   name: string;
   muscle: string;
   image: string;
   category: 'chest' | 'back' | 'shoulders' | 'arms' | 'legs' | 'core' | 'cardio';
+  movementType: MovementType;
+  equipment: EquipmentType;
 }
 
 // Muscle anatomy images from wger.de (open source, public CDN)
@@ -54,203 +59,323 @@ export function getMuscleImage(category: string): string {
 }
 
 export const EXERCISE_DB: ExerciseInfo[] = [
-  // Chest
-  { name: "Barbell Bench Press", muscle: "Chest, Triceps", image: muscleImages.chest, category: 'chest' },
-  { name: "Incline Dumbbell Press", muscle: "Upper Chest", image: muscleImages.chest, category: 'chest' },
-  { name: "Dumbbell Fly", muscle: "Chest", image: muscleImages.chest, category: 'chest' },
-  { name: "Cable Crossover", muscle: "Chest", image: muscleImages.chest, category: 'chest' },
-  { name: "Push Up", muscle: "Chest, Triceps", image: muscleImages.chest, category: 'chest' },
-  { name: "Decline Bench Press", muscle: "Lower Chest", image: muscleImages.chest, category: 'chest' },
-  { name: "Chest Dip", muscle: "Lower Chest, Triceps", image: muscleImages.chest, category: 'chest' },
-  { name: "Incline Barbell Press", muscle: "Upper Chest", image: muscleImages.chest, category: 'chest' },
-  { name: "Machine Chest Press", muscle: "Chest", image: muscleImages.chest, category: 'chest' },
-  { name: "Pec Deck Fly", muscle: "Chest", image: muscleImages.chest, category: 'chest' },
-  { name: "Dumbbell Bench Press", muscle: "Chest, Triceps", image: muscleImages.chest, category: 'chest' },
-  { name: "Decline Dumbbell Press", muscle: "Lower Chest", image: muscleImages.chest, category: 'chest' },
-  { name: "Landmine Press", muscle: "Upper Chest, Shoulders", image: muscleImages.chest, category: 'chest' },
-  { name: "Svend Press", muscle: "Inner Chest", image: muscleImages.chest, category: 'chest' },
-  { name: "Diamond Push Up", muscle: "Chest, Triceps", image: muscleImages.chest, category: 'chest' },
-  { name: "Wide Push Up", muscle: "Chest", image: muscleImages.chest, category: 'chest' },
-  // Back
-  { name: "Barbell Row", muscle: "Back, Biceps", image: muscleImages.back, category: 'back' },
-  { name: "Lat Pulldown", muscle: "Lats", image: muscleImages.back, category: 'back' },
-  { name: "Deadlift", muscle: "Back, Hamstrings", image: muscleImages.back, category: 'back' },
-  { name: "Seated Cable Row", muscle: "Mid Back", image: muscleImages.back, category: 'back' },
-  { name: "Pull Up", muscle: "Lats, Biceps", image: muscleImages.back, category: 'back' },
-  { name: "T-Bar Row", muscle: "Mid Back", image: muscleImages.back, category: 'back' },
-  { name: "Face Pull", muscle: "Rear Delt, Traps", image: muscleImages.shoulders, category: 'back' },
-  { name: "Single Arm Dumbbell Row", muscle: "Lats, Rhomboids", image: muscleImages.back, category: 'back' },
-  { name: "Close Grip Lat Pulldown", muscle: "Lats, Biceps", image: muscleImages.back, category: 'back' },
-  { name: "Wide Grip Lat Pulldown", muscle: "Lats", image: muscleImages.back, category: 'back' },
-  { name: "Chin Up", muscle: "Lats, Biceps", image: muscleImages.back, category: 'back' },
-  { name: "Pendlay Row", muscle: "Upper Back", image: muscleImages.back, category: 'back' },
-  { name: "Meadows Row", muscle: "Lats", image: muscleImages.back, category: 'back' },
-  { name: "Chest Supported Row", muscle: "Mid Back", image: muscleImages.back, category: 'back' },
-  { name: "Cable Pullover", muscle: "Lats", image: muscleImages.back, category: 'back' },
-  { name: "Rack Pull", muscle: "Upper Back, Traps", image: muscleImages.back, category: 'back' },
-  { name: "Inverted Row", muscle: "Back, Biceps", image: muscleImages.back, category: 'back' },
-  { name: "Dumbbell Pullover", muscle: "Lats, Chest", image: muscleImages.back, category: 'back' },
-  { name: "Straight Arm Pulldown", muscle: "Lats", image: muscleImages.back, category: 'back' },
-  // Shoulders
-  { name: "Overhead Press", muscle: "Shoulders", image: muscleImages.shoulders, category: 'shoulders' },
-  { name: "Lateral Raise", muscle: "Side Delt", image: muscleImages.shoulders, category: 'shoulders' },
-  { name: "Front Raise", muscle: "Front Delt", image: muscleImages.shoulders, category: 'shoulders' },
-  { name: "Arnold Press", muscle: "Shoulders", image: muscleImages.shoulders, category: 'shoulders' },
-  { name: "Reverse Fly", muscle: "Rear Delt", image: muscleImages.shoulders, category: 'shoulders' },
-  { name: "Dumbbell Shoulder Press", muscle: "Shoulders", image: muscleImages.shoulders, category: 'shoulders' },
-  { name: "Cable Lateral Raise", muscle: "Side Delt", image: muscleImages.shoulders, category: 'shoulders' },
-  { name: "Upright Row", muscle: "Shoulders, Traps", image: muscleImages.shoulders, category: 'shoulders' },
-  { name: "Barbell Shrug", muscle: "Traps", image: muscleImages.shoulders, category: 'shoulders' },
-  { name: "Dumbbell Shrug", muscle: "Traps", image: muscleImages.shoulders, category: 'shoulders' },
-  { name: "Machine Shoulder Press", muscle: "Shoulders", image: muscleImages.shoulders, category: 'shoulders' },
-  { name: "Rear Delt Fly Machine", muscle: "Rear Delt", image: muscleImages.shoulders, category: 'shoulders' },
-  { name: "Lu Raise", muscle: "Shoulders", image: muscleImages.shoulders, category: 'shoulders' },
-  { name: "Behind Neck Press", muscle: "Shoulders", image: muscleImages.shoulders, category: 'shoulders' },
-  { name: "Bradford Press", muscle: "Shoulders", image: muscleImages.shoulders, category: 'shoulders' },
-  // Arms
-  { name: "Bicep Curl", muscle: "Biceps", image: muscleImages.biceps, category: 'arms' },
-  { name: "Hammer Curl", muscle: "Biceps, Forearm", image: muscleImages.biceps, category: 'arms' },
-  { name: "Tricep Pushdown", muscle: "Triceps", image: muscleImages.triceps, category: 'arms' },
-  { name: "Skull Crusher", muscle: "Triceps", image: muscleImages.triceps, category: 'arms' },
-  { name: "Preacher Curl", muscle: "Biceps", image: muscleImages.biceps, category: 'arms' },
-  { name: "Tricep Dip", muscle: "Triceps", image: muscleImages.triceps, category: 'arms' },
-  { name: "Concentration Curl", muscle: "Biceps", image: muscleImages.biceps, category: 'arms' },
-  { name: "Cable Curl", muscle: "Biceps", image: muscleImages.biceps, category: 'arms' },
-  { name: "Incline Dumbbell Curl", muscle: "Biceps", image: muscleImages.biceps, category: 'arms' },
-  { name: "EZ Bar Curl", muscle: "Biceps", image: muscleImages.biceps, category: 'arms' },
-  { name: "Spider Curl", muscle: "Biceps", image: muscleImages.biceps, category: 'arms' },
-  { name: "Overhead Tricep Extension", muscle: "Triceps", image: muscleImages.triceps, category: 'arms' },
-  { name: "Close Grip Bench Press", muscle: "Triceps, Chest", image: muscleImages.triceps, category: 'arms' },
-  { name: "Tricep Kickback", muscle: "Triceps", image: muscleImages.triceps, category: 'arms' },
-  { name: "Cable Overhead Extension", muscle: "Triceps", image: muscleImages.triceps, category: 'arms' },
-  { name: "Bayesian Curl", muscle: "Biceps", image: muscleImages.biceps, category: 'arms' },
-  { name: "Reverse Curl", muscle: "Forearm, Biceps", image: muscleImages.biceps, category: 'arms' },
-  { name: "Wrist Curl", muscle: "Forearm", image: muscleImages.biceps, category: 'arms' },
-  { name: "Dumbbell Kickback", muscle: "Triceps", image: muscleImages.triceps, category: 'arms' },
-  // Legs
-  { name: "Barbell Squat", muscle: "Quads, Glutes", image: muscleImages.quads, category: 'legs' },
-  { name: "Leg Press", muscle: "Quads, Glutes", image: muscleImages.quads, category: 'legs' },
-  { name: "Romanian Deadlift", muscle: "Hamstrings", image: muscleImages.hamstrings, category: 'legs' },
-  { name: "Leg Curl", muscle: "Hamstrings", image: muscleImages.hamstrings, category: 'legs' },
-  { name: "Leg Extension", muscle: "Quads", image: muscleImages.quads, category: 'legs' },
-  { name: "Calf Raise", muscle: "Calves", image: muscleImages.calves, category: 'legs' },
-  { name: "Lunge", muscle: "Quads, Glutes", image: muscleImages.glutes, category: 'legs' },
-  { name: "Hip Thrust", muscle: "Glutes", image: muscleImages.glutes, category: 'legs' },
-  { name: "Bulgarian Split Squat", muscle: "Quads, Glutes", image: muscleImages.quads, category: 'legs' },
-  { name: "Hack Squat", muscle: "Quads", image: muscleImages.quads, category: 'legs' },
-  { name: "Goblet Squat", muscle: "Quads, Glutes", image: muscleImages.quads, category: 'legs' },
-  { name: "Front Squat", muscle: "Quads", image: muscleImages.quads, category: 'legs' },
-  { name: "Sumo Deadlift", muscle: "Glutes, Inner Thigh", image: muscleImages.glutes, category: 'legs' },
-  { name: "Walking Lunge", muscle: "Quads, Glutes", image: muscleImages.glutes, category: 'legs' },
-  { name: "Step Up", muscle: "Quads, Glutes", image: muscleImages.quads, category: 'legs' },
-  { name: "Seated Calf Raise", muscle: "Calves", image: muscleImages.calves, category: 'legs' },
-  { name: "Smith Machine Squat", muscle: "Quads, Glutes", image: muscleImages.quads, category: 'legs' },
-  { name: "Good Morning", muscle: "Hamstrings, Lower Back", image: muscleImages.hamstrings, category: 'legs' },
-  { name: "Glute Bridge", muscle: "Glutes", image: muscleImages.glutes, category: 'legs' },
-  { name: "Nordic Hamstring Curl", muscle: "Hamstrings", image: muscleImages.hamstrings, category: 'legs' },
-  { name: "Sissy Squat", muscle: "Quads", image: muscleImages.quads, category: 'legs' },
-  { name: "Pendulum Squat", muscle: "Quads", image: muscleImages.quads, category: 'legs' },
-  { name: "Cable Pull Through", muscle: "Glutes, Hamstrings", image: muscleImages.glutes, category: 'legs' },
-  { name: "Adductor Machine", muscle: "Inner Thigh", image: muscleImages.quads, category: 'legs' },
-  { name: "Abductor Machine", muscle: "Outer Thigh, Glutes", image: muscleImages.glutes, category: 'legs' },
-  // Core
-  { name: "Plank", muscle: "Core", image: muscleImages.abs, category: 'core' },
-  { name: "Cable Crunch", muscle: "Abs", image: muscleImages.abs, category: 'core' },
-  { name: "Abdominal Machine", muscle: "Abs", image: muscleImages.abs, category: 'core' },
-  { name: "Ab Crunch Machine", muscle: "Abs", image: muscleImages.abs, category: 'core' },
-  { name: "Seated Crunch Machine", muscle: "Abs", image: muscleImages.abs, category: 'core' },
-  { name: "Captain's Chair Leg Raise", muscle: "Lower Abs", image: muscleImages.abs, category: 'core' },
-  { name: "Sit Up", muscle: "Abs", image: muscleImages.abs, category: 'core' },
-  { name: "Hanging Leg Raise", muscle: "Lower Abs", image: muscleImages.abs, category: 'core' },
-  { name: "Russian Twist", muscle: "Obliques", image: muscleImages.abs, category: 'core' },
-  { name: "Ab Wheel Rollout", muscle: "Core", image: muscleImages.abs, category: 'core' },
-  { name: "Bicycle Crunch", muscle: "Obliques, Abs", image: muscleImages.abs, category: 'core' },
-  { name: "Mountain Climber", muscle: "Core, Cardio", image: muscleImages.abs, category: 'core' },
-  { name: "Dead Bug", muscle: "Core", image: muscleImages.abs, category: 'core' },
-  { name: "Woodchop", muscle: "Obliques", image: muscleImages.abs, category: 'core' },
-  { name: "Dragon Flag", muscle: "Core", image: muscleImages.abs, category: 'core' },
-  { name: "Side Plank", muscle: "Obliques", image: muscleImages.abs, category: 'core' },
-  { name: "Decline Sit Up", muscle: "Abs", image: muscleImages.abs, category: 'core' },
-  { name: "Pallof Press", muscle: "Core, Anti-rotation", image: muscleImages.abs, category: 'core' },
-  { name: "Toe Touch Crunch", muscle: "Abs", image: muscleImages.abs, category: 'core' },
-  // Cardio
-  { name: "Treadmill", muscle: "Cardio", image: muscleImages.calves, category: 'cardio' },
-  { name: "Cycling", muscle: "Cardio, Legs", image: muscleImages.quads, category: 'cardio' },
-  { name: "Rowing Machine", muscle: "Cardio, Back", image: muscleImages.back, category: 'cardio' },
-  { name: "Jump Rope", muscle: "Cardio, Calves", image: muscleImages.calves, category: 'cardio' },
-  { name: "Stair Climber", muscle: "Cardio, Glutes", image: muscleImages.glutes, category: 'cardio' },
-  { name: "Elliptical", muscle: "Cardio, Full Body", image: muscleImages.quads, category: 'cardio' },
-  { name: "Battle Ropes", muscle: "Cardio, Arms", image: muscleImages.biceps, category: 'cardio' },
-  { name: "Burpees", muscle: "Cardio, Full Body", image: muscleImages.quads, category: 'cardio' },
-  { name: "Box Jump", muscle: "Cardio, Legs", image: muscleImages.quads, category: 'cardio' },
-  { name: "Assault Bike", muscle: "Cardio, Full Body", image: muscleImages.quads, category: 'cardio' },
-  { name: "Sprints", muscle: "Cardio, Legs", image: muscleImages.quads, category: 'cardio' },
-  { name: "Swimming", muscle: "Cardio, Full Body", image: muscleImages.back, category: 'cardio' },
-  { name: "Kettlebell Swing", muscle: "Cardio, Glutes, Core", image: muscleImages.glutes, category: 'cardio' },
+  // ==================== CHEST ====================
+  { name: "Barbell Bench Press", muscle: "Chest, Triceps", image: muscleImages.chest, category: 'chest', movementType: 'compound', equipment: 'barbell' },
+  { name: "Incline Dumbbell Press", muscle: "Upper Chest", image: muscleImages.chest, category: 'chest', movementType: 'compound', equipment: 'dumbbell' },
+  { name: "Dumbbell Fly", muscle: "Chest", image: muscleImages.chest, category: 'chest', movementType: 'isolation', equipment: 'dumbbell' },
+  { name: "Cable Crossover", muscle: "Chest", image: muscleImages.chest, category: 'chest', movementType: 'isolation', equipment: 'cable' },
+  { name: "Push Up", muscle: "Chest, Triceps", image: muscleImages.chest, category: 'chest', movementType: 'calisthenics', equipment: 'bodyweight' },
+  { name: "Decline Bench Press", muscle: "Lower Chest", image: muscleImages.chest, category: 'chest', movementType: 'compound', equipment: 'barbell' },
+  { name: "Chest Dip", muscle: "Lower Chest, Triceps", image: muscleImages.chest, category: 'chest', movementType: 'calisthenics', equipment: 'bodyweight' },
+  { name: "Incline Barbell Press", muscle: "Upper Chest", image: muscleImages.chest, category: 'chest', movementType: 'compound', equipment: 'barbell' },
+  { name: "Machine Chest Press", muscle: "Chest", image: muscleImages.chest, category: 'chest', movementType: 'compound', equipment: 'machine' },
+  { name: "Pec Deck Fly", muscle: "Chest", image: muscleImages.chest, category: 'chest', movementType: 'isolation', equipment: 'machine' },
+  { name: "Dumbbell Bench Press", muscle: "Chest, Triceps", image: muscleImages.chest, category: 'chest', movementType: 'compound', equipment: 'dumbbell' },
+  { name: "Decline Dumbbell Press", muscle: "Lower Chest", image: muscleImages.chest, category: 'chest', movementType: 'compound', equipment: 'dumbbell' },
+  { name: "Landmine Press", muscle: "Upper Chest, Shoulders", image: muscleImages.chest, category: 'chest', movementType: 'compound', equipment: 'barbell' },
+  { name: "Svend Press", muscle: "Inner Chest", image: muscleImages.chest, category: 'chest', movementType: 'isolation', equipment: 'plate' },
+  { name: "Diamond Push Up", muscle: "Chest, Triceps", image: muscleImages.chest, category: 'chest', movementType: 'calisthenics', equipment: 'bodyweight' },
+  { name: "Wide Push Up", muscle: "Chest", image: muscleImages.chest, category: 'chest', movementType: 'calisthenics', equipment: 'bodyweight' },
+  { name: "Floor Press", muscle: "Chest, Triceps", image: muscleImages.chest, category: 'chest', movementType: 'compound', equipment: 'barbell' },
+  { name: "Dumbbell Squeeze Press", muscle: "Inner Chest", image: muscleImages.chest, category: 'chest', movementType: 'compound', equipment: 'dumbbell' },
+  { name: "Incline Cable Fly", muscle: "Upper Chest", image: muscleImages.chest, category: 'chest', movementType: 'isolation', equipment: 'cable' },
+  { name: "Smith Machine Bench Press", muscle: "Chest", image: muscleImages.chest, category: 'chest', movementType: 'compound', equipment: 'smith_machine' },
+  { name: "Plate Pinch Press", muscle: "Inner Chest", image: muscleImages.chest, category: 'chest', movementType: 'isolation', equipment: 'plate' },
+  { name: "Archer Push Up", muscle: "Chest, Shoulders", image: muscleImages.chest, category: 'chest', movementType: 'calisthenics', equipment: 'bodyweight' },
   // New Chest
-  { name: "Floor Press", muscle: "Chest, Triceps", image: muscleImages.chest, category: 'chest' },
-  { name: "Dumbbell Squeeze Press", muscle: "Inner Chest", image: muscleImages.chest, category: 'chest' },
-  { name: "Incline Cable Fly", muscle: "Upper Chest", image: muscleImages.chest, category: 'chest' },
-  { name: "Smith Machine Bench Press", muscle: "Chest", image: muscleImages.chest, category: 'chest' },
-  { name: "Plate Pinch Press", muscle: "Inner Chest", image: muscleImages.chest, category: 'chest' },
-  { name: "Archer Push Up", muscle: "Chest, Shoulders", image: muscleImages.chest, category: 'chest' },
+  { name: "Cable Fly", muscle: "Chest", image: muscleImages.chest, category: 'chest', movementType: 'isolation', equipment: 'cable' },
+  { name: "Decline Cable Fly", muscle: "Lower Chest", image: muscleImages.chest, category: 'chest', movementType: 'isolation', equipment: 'cable' },
+  { name: "Ring Dip", muscle: "Chest, Triceps", image: muscleImages.chest, category: 'chest', movementType: 'calisthenics', equipment: 'bodyweight' },
+  { name: "Plyo Push Up", muscle: "Chest, Power", image: muscleImages.chest, category: 'chest', movementType: 'plyometric', equipment: 'bodyweight' },
+  { name: "Banded Push Up", muscle: "Chest, Triceps", image: muscleImages.chest, category: 'chest', movementType: 'compound', equipment: 'band' },
+
+  // ==================== BACK ====================
+  { name: "Barbell Row", muscle: "Back, Biceps", image: muscleImages.back, category: 'back', movementType: 'compound', equipment: 'barbell' },
+  { name: "Lat Pulldown", muscle: "Lats", image: muscleImages.back, category: 'back', movementType: 'compound', equipment: 'cable' },
+  { name: "Deadlift", muscle: "Back, Hamstrings", image: muscleImages.back, category: 'back', movementType: 'compound', equipment: 'barbell' },
+  { name: "Seated Cable Row", muscle: "Mid Back", image: muscleImages.back, category: 'back', movementType: 'compound', equipment: 'cable' },
+  { name: "Pull Up", muscle: "Lats, Biceps", image: muscleImages.back, category: 'back', movementType: 'calisthenics', equipment: 'bodyweight' },
+  { name: "T-Bar Row", muscle: "Mid Back", image: muscleImages.back, category: 'back', movementType: 'compound', equipment: 'barbell' },
+  { name: "Face Pull", muscle: "Rear Delt, Traps", image: muscleImages.shoulders, category: 'back', movementType: 'isolation', equipment: 'cable' },
+  { name: "Single Arm Dumbbell Row", muscle: "Lats, Rhomboids", image: muscleImages.back, category: 'back', movementType: 'compound', equipment: 'dumbbell' },
+  { name: "Close Grip Lat Pulldown", muscle: "Lats, Biceps", image: muscleImages.back, category: 'back', movementType: 'compound', equipment: 'cable' },
+  { name: "Wide Grip Lat Pulldown", muscle: "Lats", image: muscleImages.back, category: 'back', movementType: 'compound', equipment: 'cable' },
+  { name: "Chin Up", muscle: "Lats, Biceps", image: muscleImages.back, category: 'back', movementType: 'calisthenics', equipment: 'bodyweight' },
+  { name: "Pendlay Row", muscle: "Upper Back", image: muscleImages.back, category: 'back', movementType: 'compound', equipment: 'barbell' },
+  { name: "Meadows Row", muscle: "Lats", image: muscleImages.back, category: 'back', movementType: 'compound', equipment: 'barbell' },
+  { name: "Chest Supported Row", muscle: "Mid Back", image: muscleImages.back, category: 'back', movementType: 'compound', equipment: 'dumbbell' },
+  { name: "Cable Pullover", muscle: "Lats", image: muscleImages.back, category: 'back', movementType: 'isolation', equipment: 'cable' },
+  { name: "Rack Pull", muscle: "Upper Back, Traps", image: muscleImages.back, category: 'back', movementType: 'compound', equipment: 'barbell' },
+  { name: "Inverted Row", muscle: "Back, Biceps", image: muscleImages.back, category: 'back', movementType: 'calisthenics', equipment: 'bodyweight' },
+  { name: "Dumbbell Pullover", muscle: "Lats, Chest", image: muscleImages.back, category: 'back', movementType: 'isolation', equipment: 'dumbbell' },
+  { name: "Straight Arm Pulldown", muscle: "Lats", image: muscleImages.back, category: 'back', movementType: 'isolation', equipment: 'cable' },
+  { name: "Seal Row", muscle: "Mid Back", image: muscleImages.back, category: 'back', movementType: 'compound', equipment: 'barbell' },
+  { name: "Kroc Row", muscle: "Lats, Grip", image: muscleImages.back, category: 'back', movementType: 'compound', equipment: 'dumbbell' },
+  { name: "Snatch Grip Deadlift", muscle: "Upper Back, Traps", image: muscleImages.back, category: 'back', movementType: 'compound', equipment: 'barbell' },
+  { name: "Reverse Grip Barbell Row", muscle: "Lats, Biceps", image: muscleImages.back, category: 'back', movementType: 'compound', equipment: 'barbell' },
+  { name: "Machine Row", muscle: "Mid Back", image: muscleImages.back, category: 'back', movementType: 'compound', equipment: 'machine' },
+  { name: "Neutral Grip Pull Up", muscle: "Lats, Biceps", image: muscleImages.back, category: 'back', movementType: 'calisthenics', equipment: 'bodyweight' },
+  { name: "Banded Pull Apart", muscle: "Rear Delt, Rhomboids", image: muscleImages.back, category: 'back', movementType: 'isolation', equipment: 'band' },
   // New Back
-  { name: "Seal Row", muscle: "Mid Back", image: muscleImages.back, category: 'back' },
-  { name: "Kroc Row", muscle: "Lats, Grip", image: muscleImages.back, category: 'back' },
-  { name: "Snatch Grip Deadlift", muscle: "Upper Back, Traps", image: muscleImages.back, category: 'back' },
-  { name: "Reverse Grip Barbell Row", muscle: "Lats, Biceps", image: muscleImages.back, category: 'back' },
-  { name: "Machine Row", muscle: "Mid Back", image: muscleImages.back, category: 'back' },
-  { name: "Neutral Grip Pull Up", muscle: "Lats, Biceps", image: muscleImages.back, category: 'back' },
-  { name: "Banded Pull Apart", muscle: "Rear Delt, Rhomboids", image: muscleImages.back, category: 'back' },
+  { name: "Trap Bar Deadlift", muscle: "Back, Legs", image: muscleImages.back, category: 'back', movementType: 'compound', equipment: 'trap_bar' },
+  { name: "Deficit Deadlift", muscle: "Back, Hamstrings", image: muscleImages.back, category: 'back', movementType: 'compound', equipment: 'barbell' },
+  { name: "Single Arm Cable Row", muscle: "Lats", image: muscleImages.back, category: 'back', movementType: 'isolation', equipment: 'cable' },
+  { name: "Cable Lateral Pull", muscle: "Lats", image: muscleImages.back, category: 'back', movementType: 'isolation', equipment: 'cable' },
+  { name: "Muscle Up", muscle: "Lats, Chest, Triceps", image: muscleImages.back, category: 'back', movementType: 'calisthenics', equipment: 'bodyweight' },
+  { name: "Ring Row", muscle: "Back, Biceps", image: muscleImages.back, category: 'back', movementType: 'calisthenics', equipment: 'bodyweight' },
+  { name: "L-Sit Pull Up", muscle: "Lats, Core", image: muscleImages.back, category: 'back', movementType: 'calisthenics', equipment: 'bodyweight' },
+  { name: "Commando Pull Up", muscle: "Lats, Biceps", image: muscleImages.back, category: 'back', movementType: 'calisthenics', equipment: 'bodyweight' },
+  { name: "Kettlebell Row", muscle: "Lats, Rhomboids", image: muscleImages.back, category: 'back', movementType: 'compound', equipment: 'kettlebell' },
+
+  // ==================== SHOULDERS ====================
+  { name: "Overhead Press", muscle: "Shoulders", image: muscleImages.shoulders, category: 'shoulders', movementType: 'compound', equipment: 'barbell' },
+  { name: "Lateral Raise", muscle: "Side Delt", image: muscleImages.shoulders, category: 'shoulders', movementType: 'isolation', equipment: 'dumbbell' },
+  { name: "Front Raise", muscle: "Front Delt", image: muscleImages.shoulders, category: 'shoulders', movementType: 'isolation', equipment: 'dumbbell' },
+  { name: "Arnold Press", muscle: "Shoulders", image: muscleImages.shoulders, category: 'shoulders', movementType: 'compound', equipment: 'dumbbell' },
+  { name: "Reverse Fly", muscle: "Rear Delt", image: muscleImages.shoulders, category: 'shoulders', movementType: 'isolation', equipment: 'dumbbell' },
+  { name: "Dumbbell Shoulder Press", muscle: "Shoulders", image: muscleImages.shoulders, category: 'shoulders', movementType: 'compound', equipment: 'dumbbell' },
+  { name: "Cable Lateral Raise", muscle: "Side Delt", image: muscleImages.shoulders, category: 'shoulders', movementType: 'isolation', equipment: 'cable' },
+  { name: "Upright Row", muscle: "Shoulders, Traps", image: muscleImages.shoulders, category: 'shoulders', movementType: 'compound', equipment: 'barbell' },
+  { name: "Barbell Shrug", muscle: "Traps", image: muscleImages.shoulders, category: 'shoulders', movementType: 'isolation', equipment: 'barbell' },
+  { name: "Dumbbell Shrug", muscle: "Traps", image: muscleImages.shoulders, category: 'shoulders', movementType: 'isolation', equipment: 'dumbbell' },
+  { name: "Machine Shoulder Press", muscle: "Shoulders", image: muscleImages.shoulders, category: 'shoulders', movementType: 'compound', equipment: 'machine' },
+  { name: "Rear Delt Fly Machine", muscle: "Rear Delt", image: muscleImages.shoulders, category: 'shoulders', movementType: 'isolation', equipment: 'machine' },
+  { name: "Lu Raise", muscle: "Shoulders", image: muscleImages.shoulders, category: 'shoulders', movementType: 'isolation', equipment: 'dumbbell' },
+  { name: "Behind Neck Press", muscle: "Shoulders", image: muscleImages.shoulders, category: 'shoulders', movementType: 'compound', equipment: 'barbell' },
+  { name: "Bradford Press", muscle: "Shoulders", image: muscleImages.shoulders, category: 'shoulders', movementType: 'compound', equipment: 'barbell' },
+  { name: "Z Press", muscle: "Shoulders", image: muscleImages.shoulders, category: 'shoulders', movementType: 'compound', equipment: 'barbell' },
+  { name: "Viking Press", muscle: "Shoulders", image: muscleImages.shoulders, category: 'shoulders', movementType: 'compound', equipment: 'machine' },
+  { name: "Plate Front Raise", muscle: "Front Delt", image: muscleImages.shoulders, category: 'shoulders', movementType: 'isolation', equipment: 'plate' },
+  { name: "Cable Face Pull", muscle: "Rear Delt, Traps", image: muscleImages.shoulders, category: 'shoulders', movementType: 'isolation', equipment: 'cable' },
+  { name: "Prone Y Raise", muscle: "Rear Delt, Lower Traps", image: muscleImages.shoulders, category: 'shoulders', movementType: 'isolation', equipment: 'dumbbell' },
+  { name: "Single Arm Lateral Raise", muscle: "Side Delt", image: muscleImages.shoulders, category: 'shoulders', movementType: 'isolation', equipment: 'dumbbell' },
   // New Shoulders
-  { name: "Z Press", muscle: "Shoulders", image: muscleImages.shoulders, category: 'shoulders' },
-  { name: "Viking Press", muscle: "Shoulders", image: muscleImages.shoulders, category: 'shoulders' },
-  { name: "Plate Front Raise", muscle: "Front Delt", image: muscleImages.shoulders, category: 'shoulders' },
-  { name: "Cable Face Pull", muscle: "Rear Delt, Traps", image: muscleImages.shoulders, category: 'shoulders' },
-  { name: "Prone Y Raise", muscle: "Rear Delt, Lower Traps", image: muscleImages.shoulders, category: 'shoulders' },
-  { name: "Single Arm Lateral Raise", muscle: "Side Delt", image: muscleImages.shoulders, category: 'shoulders' },
+  { name: "Snatch", muscle: "Shoulders, Full Body", image: muscleImages.shoulders, category: 'shoulders', movementType: 'olympic', equipment: 'barbell' },
+  { name: "Push Press", muscle: "Shoulders, Triceps", image: muscleImages.shoulders, category: 'shoulders', movementType: 'compound', equipment: 'barbell' },
+  { name: "Handstand Push Up", muscle: "Shoulders, Triceps", image: muscleImages.shoulders, category: 'shoulders', movementType: 'calisthenics', equipment: 'bodyweight' },
+  { name: "Cable Reverse Fly", muscle: "Rear Delt", image: muscleImages.shoulders, category: 'shoulders', movementType: 'isolation', equipment: 'cable' },
+  { name: "Band Face Pull", muscle: "Rear Delt, Traps", image: muscleImages.shoulders, category: 'shoulders', movementType: 'isolation', equipment: 'band' },
+  { name: "Kettlebell Press", muscle: "Shoulders", image: muscleImages.shoulders, category: 'shoulders', movementType: 'compound', equipment: 'kettlebell' },
+  { name: "Kettlebell Snatch", muscle: "Shoulders, Full Body", image: muscleImages.shoulders, category: 'shoulders', movementType: 'compound', equipment: 'kettlebell' },
+
+  // ==================== ARMS ====================
+  { name: "Bicep Curl", muscle: "Biceps", image: muscleImages.biceps, category: 'arms', movementType: 'isolation', equipment: 'dumbbell' },
+  { name: "Hammer Curl", muscle: "Biceps, Forearm", image: muscleImages.biceps, category: 'arms', movementType: 'isolation', equipment: 'dumbbell' },
+  { name: "Tricep Pushdown", muscle: "Triceps", image: muscleImages.triceps, category: 'arms', movementType: 'isolation', equipment: 'cable' },
+  { name: "Skull Crusher", muscle: "Triceps", image: muscleImages.triceps, category: 'arms', movementType: 'isolation', equipment: 'ez_bar' },
+  { name: "Preacher Curl", muscle: "Biceps", image: muscleImages.biceps, category: 'arms', movementType: 'isolation', equipment: 'ez_bar' },
+  { name: "Tricep Dip", muscle: "Triceps", image: muscleImages.triceps, category: 'arms', movementType: 'calisthenics', equipment: 'bodyweight' },
+  { name: "Concentration Curl", muscle: "Biceps", image: muscleImages.biceps, category: 'arms', movementType: 'isolation', equipment: 'dumbbell' },
+  { name: "Cable Curl", muscle: "Biceps", image: muscleImages.biceps, category: 'arms', movementType: 'isolation', equipment: 'cable' },
+  { name: "Incline Dumbbell Curl", muscle: "Biceps", image: muscleImages.biceps, category: 'arms', movementType: 'isolation', equipment: 'dumbbell' },
+  { name: "EZ Bar Curl", muscle: "Biceps", image: muscleImages.biceps, category: 'arms', movementType: 'isolation', equipment: 'ez_bar' },
+  { name: "Spider Curl", muscle: "Biceps", image: muscleImages.biceps, category: 'arms', movementType: 'isolation', equipment: 'dumbbell' },
+  { name: "Overhead Tricep Extension", muscle: "Triceps", image: muscleImages.triceps, category: 'arms', movementType: 'isolation', equipment: 'dumbbell' },
+  { name: "Close Grip Bench Press", muscle: "Triceps, Chest", image: muscleImages.triceps, category: 'arms', movementType: 'compound', equipment: 'barbell' },
+  { name: "Tricep Kickback", muscle: "Triceps", image: muscleImages.triceps, category: 'arms', movementType: 'isolation', equipment: 'dumbbell' },
+  { name: "Cable Overhead Extension", muscle: "Triceps", image: muscleImages.triceps, category: 'arms', movementType: 'isolation', equipment: 'cable' },
+  { name: "Bayesian Curl", muscle: "Biceps", image: muscleImages.biceps, category: 'arms', movementType: 'isolation', equipment: 'cable' },
+  { name: "Reverse Curl", muscle: "Forearm, Biceps", image: muscleImages.biceps, category: 'arms', movementType: 'isolation', equipment: 'barbell' },
+  { name: "Wrist Curl", muscle: "Forearm", image: muscleImages.biceps, category: 'arms', movementType: 'isolation', equipment: 'dumbbell' },
+  { name: "Dumbbell Kickback", muscle: "Triceps", image: muscleImages.triceps, category: 'arms', movementType: 'isolation', equipment: 'dumbbell' },
+  { name: "21s Bicep Curl", muscle: "Biceps", image: muscleImages.biceps, category: 'arms', movementType: 'isolation', equipment: 'ez_bar' },
+  { name: "Cross Body Hammer Curl", muscle: "Brachialis", image: muscleImages.biceps, category: 'arms', movementType: 'isolation', equipment: 'dumbbell' },
+  { name: "Barbell Curl", muscle: "Biceps", image: muscleImages.biceps, category: 'arms', movementType: 'isolation', equipment: 'barbell' },
+  { name: "JM Press", muscle: "Triceps", image: muscleImages.triceps, category: 'arms', movementType: 'compound', equipment: 'barbell' },
+  { name: "Diamond Close Grip Push Up", muscle: "Triceps", image: muscleImages.triceps, category: 'arms', movementType: 'calisthenics', equipment: 'bodyweight' },
+  { name: "French Press", muscle: "Triceps", image: muscleImages.triceps, category: 'arms', movementType: 'isolation', equipment: 'ez_bar' },
+  { name: "Zottman Curl", muscle: "Biceps, Forearm", image: muscleImages.biceps, category: 'arms', movementType: 'isolation', equipment: 'dumbbell' },
+  { name: "Seated Incline Curl", muscle: "Biceps", image: muscleImages.biceps, category: 'arms', movementType: 'isolation', equipment: 'dumbbell' },
+  { name: "Rope Tricep Pushdown", muscle: "Triceps", image: muscleImages.triceps, category: 'arms', movementType: 'isolation', equipment: 'cable' },
   // New Arms
-  { name: "21s Bicep Curl", muscle: "Biceps", image: muscleImages.biceps, category: 'arms' },
-  { name: "Cross Body Hammer Curl", muscle: "Brachialis", image: muscleImages.biceps, category: 'arms' },
-  { name: "Barbell Curl", muscle: "Biceps", image: muscleImages.biceps, category: 'arms' },
-  { name: "JM Press", muscle: "Triceps", image: muscleImages.triceps, category: 'arms' },
-  { name: "Diamond Close Grip Push Up", muscle: "Triceps", image: muscleImages.triceps, category: 'arms' },
-  { name: "French Press", muscle: "Triceps", image: muscleImages.triceps, category: 'arms' },
-  { name: "Zottman Curl", muscle: "Biceps, Forearm", image: muscleImages.biceps, category: 'arms' },
-  { name: "Seated Incline Curl", muscle: "Biceps", image: muscleImages.biceps, category: 'arms' },
-  { name: "Rope Tricep Pushdown", muscle: "Triceps", image: muscleImages.triceps, category: 'arms' },
+  { name: "Prone Incline Curl", muscle: "Biceps", image: muscleImages.biceps, category: 'arms', movementType: 'isolation', equipment: 'dumbbell' },
+  { name: "Single Arm Tricep Pushdown", muscle: "Triceps", image: muscleImages.triceps, category: 'arms', movementType: 'isolation', equipment: 'cable' },
+  { name: "Band Curl", muscle: "Biceps", image: muscleImages.biceps, category: 'arms', movementType: 'isolation', equipment: 'band' },
+  { name: "Band Tricep Extension", muscle: "Triceps", image: muscleImages.triceps, category: 'arms', movementType: 'isolation', equipment: 'band' },
+
+  // ==================== LEGS ====================
+  { name: "Barbell Squat", muscle: "Quads, Glutes", image: muscleImages.quads, category: 'legs', movementType: 'compound', equipment: 'barbell' },
+  { name: "Leg Press", muscle: "Quads, Glutes", image: muscleImages.quads, category: 'legs', movementType: 'compound', equipment: 'machine' },
+  { name: "Romanian Deadlift", muscle: "Hamstrings", image: muscleImages.hamstrings, category: 'legs', movementType: 'compound', equipment: 'barbell' },
+  { name: "Leg Curl", muscle: "Hamstrings", image: muscleImages.hamstrings, category: 'legs', movementType: 'isolation', equipment: 'machine' },
+  { name: "Leg Extension", muscle: "Quads", image: muscleImages.quads, category: 'legs', movementType: 'isolation', equipment: 'machine' },
+  { name: "Calf Raise", muscle: "Calves", image: muscleImages.calves, category: 'legs', movementType: 'isolation', equipment: 'machine' },
+  { name: "Lunge", muscle: "Quads, Glutes", image: muscleImages.glutes, category: 'legs', movementType: 'compound', equipment: 'dumbbell' },
+  { name: "Hip Thrust", muscle: "Glutes", image: muscleImages.glutes, category: 'legs', movementType: 'compound', equipment: 'barbell' },
+  { name: "Bulgarian Split Squat", muscle: "Quads, Glutes", image: muscleImages.quads, category: 'legs', movementType: 'compound', equipment: 'dumbbell' },
+  { name: "Hack Squat", muscle: "Quads", image: muscleImages.quads, category: 'legs', movementType: 'compound', equipment: 'machine' },
+  { name: "Goblet Squat", muscle: "Quads, Glutes", image: muscleImages.quads, category: 'legs', movementType: 'compound', equipment: 'dumbbell' },
+  { name: "Front Squat", muscle: "Quads", image: muscleImages.quads, category: 'legs', movementType: 'compound', equipment: 'barbell' },
+  { name: "Sumo Deadlift", muscle: "Glutes, Inner Thigh", image: muscleImages.glutes, category: 'legs', movementType: 'compound', equipment: 'barbell' },
+  { name: "Walking Lunge", muscle: "Quads, Glutes", image: muscleImages.glutes, category: 'legs', movementType: 'compound', equipment: 'dumbbell' },
+  { name: "Step Up", muscle: "Quads, Glutes", image: muscleImages.quads, category: 'legs', movementType: 'compound', equipment: 'dumbbell' },
+  { name: "Seated Calf Raise", muscle: "Calves", image: muscleImages.calves, category: 'legs', movementType: 'isolation', equipment: 'machine' },
+  { name: "Smith Machine Squat", muscle: "Quads, Glutes", image: muscleImages.quads, category: 'legs', movementType: 'compound', equipment: 'smith_machine' },
+  { name: "Good Morning", muscle: "Hamstrings, Lower Back", image: muscleImages.hamstrings, category: 'legs', movementType: 'compound', equipment: 'barbell' },
+  { name: "Glute Bridge", muscle: "Glutes", image: muscleImages.glutes, category: 'legs', movementType: 'compound', equipment: 'bodyweight' },
+  { name: "Nordic Hamstring Curl", muscle: "Hamstrings", image: muscleImages.hamstrings, category: 'legs', movementType: 'calisthenics', equipment: 'bodyweight' },
+  { name: "Sissy Squat", muscle: "Quads", image: muscleImages.quads, category: 'legs', movementType: 'calisthenics', equipment: 'bodyweight' },
+  { name: "Pendulum Squat", muscle: "Quads", image: muscleImages.quads, category: 'legs', movementType: 'compound', equipment: 'machine' },
+  { name: "Cable Pull Through", muscle: "Glutes, Hamstrings", image: muscleImages.glutes, category: 'legs', movementType: 'isolation', equipment: 'cable' },
+  { name: "Adductor Machine", muscle: "Inner Thigh", image: muscleImages.quads, category: 'legs', movementType: 'isolation', equipment: 'machine' },
+  { name: "Abductor Machine", muscle: "Outer Thigh, Glutes", image: muscleImages.glutes, category: 'legs', movementType: 'isolation', equipment: 'machine' },
+  { name: "Belt Squat", muscle: "Quads, Glutes", image: muscleImages.quads, category: 'legs', movementType: 'compound', equipment: 'machine' },
+  { name: "Zercher Squat", muscle: "Quads, Core", image: muscleImages.quads, category: 'legs', movementType: 'compound', equipment: 'barbell' },
+  { name: "Single Leg Press", muscle: "Quads, Glutes", image: muscleImages.quads, category: 'legs', movementType: 'compound', equipment: 'machine' },
+  { name: "Reverse Lunge", muscle: "Quads, Glutes", image: muscleImages.quads, category: 'legs', movementType: 'compound', equipment: 'dumbbell' },
+  { name: "Donkey Calf Raise", muscle: "Calves", image: muscleImages.calves, category: 'legs', movementType: 'isolation', equipment: 'machine' },
+  { name: "Leg Press Calf Raise", muscle: "Calves", image: muscleImages.calves, category: 'legs', movementType: 'isolation', equipment: 'machine' },
+  { name: "Banded Hip Thrust", muscle: "Glutes", image: muscleImages.glutes, category: 'legs', movementType: 'compound', equipment: 'band' },
+  { name: "Lateral Lunge", muscle: "Inner Thigh, Glutes", image: muscleImages.glutes, category: 'legs', movementType: 'compound', equipment: 'bodyweight' },
   // New Legs
-  { name: "Belt Squat", muscle: "Quads, Glutes", image: muscleImages.quads, category: 'legs' },
-  { name: "Zercher Squat", muscle: "Quads, Core", image: muscleImages.quads, category: 'legs' },
-  { name: "Single Leg Press", muscle: "Quads, Glutes", image: muscleImages.quads, category: 'legs' },
-  { name: "Reverse Lunge", muscle: "Quads, Glutes", image: muscleImages.quads, category: 'legs' },
-  { name: "Donkey Calf Raise", muscle: "Calves", image: muscleImages.calves, category: 'legs' },
-  { name: "Leg Press Calf Raise", muscle: "Calves", image: muscleImages.calves, category: 'legs' },
-  { name: "Banded Hip Thrust", muscle: "Glutes", image: muscleImages.glutes, category: 'legs' },
-  { name: "Lateral Lunge", muscle: "Inner Thigh, Glutes", image: muscleImages.glutes, category: 'legs' },
+  { name: "Power Clean", muscle: "Quads, Glutes, Traps", image: muscleImages.quads, category: 'legs', movementType: 'olympic', equipment: 'barbell' },
+  { name: "Clean and Jerk", muscle: "Full Body", image: muscleImages.quads, category: 'legs', movementType: 'olympic', equipment: 'barbell' },
+  { name: "Hang Clean", muscle: "Quads, Traps", image: muscleImages.quads, category: 'legs', movementType: 'olympic', equipment: 'barbell' },
+  { name: "Thruster", muscle: "Quads, Shoulders", image: muscleImages.quads, category: 'legs', movementType: 'compound', equipment: 'barbell' },
+  { name: "Paused Squat", muscle: "Quads, Glutes", image: muscleImages.quads, category: 'legs', movementType: 'compound', equipment: 'barbell' },
+  { name: "Anderson Squat", muscle: "Quads, Glutes", image: muscleImages.quads, category: 'legs', movementType: 'compound', equipment: 'barbell' },
+  { name: "Safety Bar Squat", muscle: "Quads, Glutes", image: muscleImages.quads, category: 'legs', movementType: 'compound', equipment: 'barbell' },
+  { name: "Pistol Squat", muscle: "Quads, Glutes, Balance", image: muscleImages.quads, category: 'legs', movementType: 'calisthenics', equipment: 'bodyweight' },
+  { name: "Depth Jump", muscle: "Quads, Power", image: muscleImages.quads, category: 'legs', movementType: 'plyometric', equipment: 'bodyweight' },
+  { name: "Broad Jump", muscle: "Quads, Glutes", image: muscleImages.quads, category: 'legs', movementType: 'plyometric', equipment: 'bodyweight' },
+  { name: "Split Squat Jump", muscle: "Quads, Glutes", image: muscleImages.quads, category: 'legs', movementType: 'plyometric', equipment: 'bodyweight' },
+  { name: "Skater Jump", muscle: "Glutes, Balance", image: muscleImages.glutes, category: 'legs', movementType: 'plyometric', equipment: 'bodyweight' },
+  { name: "Kettlebell Goblet Squat", muscle: "Quads, Glutes", image: muscleImages.quads, category: 'legs', movementType: 'compound', equipment: 'kettlebell' },
+  { name: "Kettlebell Clean", muscle: "Quads, Glutes, Grip", image: muscleImages.quads, category: 'legs', movementType: 'compound', equipment: 'kettlebell' },
+  { name: "Banded Squat", muscle: "Quads, Glutes", image: muscleImages.quads, category: 'legs', movementType: 'compound', equipment: 'band' },
+
+  // ==================== CORE ====================
+  { name: "Plank", muscle: "Core", image: muscleImages.abs, category: 'core', movementType: 'static', equipment: 'bodyweight' },
+  { name: "Cable Crunch", muscle: "Abs", image: muscleImages.abs, category: 'core', movementType: 'isolation', equipment: 'cable' },
+  { name: "Abdominal Machine", muscle: "Abs", image: muscleImages.abs, category: 'core', movementType: 'isolation', equipment: 'machine' },
+  { name: "Ab Crunch Machine", muscle: "Abs", image: muscleImages.abs, category: 'core', movementType: 'isolation', equipment: 'machine' },
+  { name: "Seated Crunch Machine", muscle: "Abs", image: muscleImages.abs, category: 'core', movementType: 'isolation', equipment: 'machine' },
+  { name: "Captain's Chair Leg Raise", muscle: "Lower Abs", image: muscleImages.abs, category: 'core', movementType: 'isolation', equipment: 'bodyweight' },
+  { name: "Sit Up", muscle: "Abs", image: muscleImages.abs, category: 'core', movementType: 'isolation', equipment: 'bodyweight' },
+  { name: "Hanging Leg Raise", muscle: "Lower Abs", image: muscleImages.abs, category: 'core', movementType: 'isolation', equipment: 'bodyweight' },
+  { name: "Russian Twist", muscle: "Obliques", image: muscleImages.abs, category: 'core', movementType: 'isolation', equipment: 'bodyweight' },
+  { name: "Ab Wheel Rollout", muscle: "Core", image: muscleImages.abs, category: 'core', movementType: 'compound', equipment: 'other' },
+  { name: "Bicycle Crunch", muscle: "Obliques, Abs", image: muscleImages.abs, category: 'core', movementType: 'isolation', equipment: 'bodyweight' },
+  { name: "Mountain Climber", muscle: "Core, Cardio", image: muscleImages.abs, category: 'core', movementType: 'cardio', equipment: 'bodyweight' },
+  { name: "Dead Bug", muscle: "Core", image: muscleImages.abs, category: 'core', movementType: 'isolation', equipment: 'bodyweight' },
+  { name: "Woodchop", muscle: "Obliques", image: muscleImages.abs, category: 'core', movementType: 'compound', equipment: 'cable' },
+  { name: "Dragon Flag", muscle: "Core", image: muscleImages.abs, category: 'core', movementType: 'calisthenics', equipment: 'bodyweight' },
+  { name: "Side Plank", muscle: "Obliques", image: muscleImages.abs, category: 'core', movementType: 'static', equipment: 'bodyweight' },
+  { name: "Decline Sit Up", muscle: "Abs", image: muscleImages.abs, category: 'core', movementType: 'isolation', equipment: 'bodyweight' },
+  { name: "Pallof Press", muscle: "Core, Anti-rotation", image: muscleImages.abs, category: 'core', movementType: 'isolation', equipment: 'cable' },
+  { name: "Toe Touch Crunch", muscle: "Abs", image: muscleImages.abs, category: 'core', movementType: 'isolation', equipment: 'bodyweight' },
+  { name: "L-Sit", muscle: "Core, Hip Flexors", image: muscleImages.abs, category: 'core', movementType: 'static', equipment: 'bodyweight' },
+  { name: "Hollow Body Hold", muscle: "Core", image: muscleImages.abs, category: 'core', movementType: 'static', equipment: 'bodyweight' },
+  { name: "Farmer's Walk", muscle: "Core, Grip", image: muscleImages.abs, category: 'core', movementType: 'compound', equipment: 'dumbbell' },
+  { name: "Suitcase Carry", muscle: "Obliques, Core", image: muscleImages.abs, category: 'core', movementType: 'compound', equipment: 'dumbbell' },
+  { name: "Copenhagen Plank", muscle: "Adductors, Core", image: muscleImages.abs, category: 'core', movementType: 'static', equipment: 'bodyweight' },
+  { name: "Turkish Get Up", muscle: "Core, Full Body", image: muscleImages.abs, category: 'core', movementType: 'compound', equipment: 'kettlebell' },
+  { name: "Reverse Crunch", muscle: "Lower Abs", image: muscleImages.abs, category: 'core', movementType: 'isolation', equipment: 'bodyweight' },
+  { name: "V-Up", muscle: "Abs", image: muscleImages.abs, category: 'core', movementType: 'isolation', equipment: 'bodyweight' },
   // New Core
-  { name: "L-Sit", muscle: "Core, Hip Flexors", image: muscleImages.abs, category: 'core' },
-  { name: "Hollow Body Hold", muscle: "Core", image: muscleImages.abs, category: 'core' },
-  { name: "Farmer's Walk", muscle: "Core, Grip", image: muscleImages.abs, category: 'core' },
-  { name: "Suitcase Carry", muscle: "Obliques, Core", image: muscleImages.abs, category: 'core' },
-  { name: "Copenhagen Plank", muscle: "Adductors, Core", image: muscleImages.abs, category: 'core' },
-  { name: "Turkish Get Up", muscle: "Core, Full Body", image: muscleImages.abs, category: 'core' },
-  { name: "Reverse Crunch", muscle: "Lower Abs", image: muscleImages.abs, category: 'core' },
-  { name: "V-Up", muscle: "Abs", image: muscleImages.abs, category: 'core' },
+  { name: "Kettlebell Windmill", muscle: "Obliques, Core", image: muscleImages.abs, category: 'core', movementType: 'compound', equipment: 'kettlebell' },
+
+  // ==================== CARDIO ====================
+  { name: "Treadmill", muscle: "Cardio", image: muscleImages.calves, category: 'cardio', movementType: 'cardio', equipment: 'machine' },
+  { name: "Cycling", muscle: "Cardio, Legs", image: muscleImages.quads, category: 'cardio', movementType: 'cardio', equipment: 'machine' },
+  { name: "Rowing Machine", muscle: "Cardio, Back", image: muscleImages.back, category: 'cardio', movementType: 'cardio', equipment: 'machine' },
+  { name: "Jump Rope", muscle: "Cardio, Calves", image: muscleImages.calves, category: 'cardio', movementType: 'cardio', equipment: 'other' },
+  { name: "Stair Climber", muscle: "Cardio, Glutes", image: muscleImages.glutes, category: 'cardio', movementType: 'cardio', equipment: 'machine' },
+  { name: "Elliptical", muscle: "Cardio, Full Body", image: muscleImages.quads, category: 'cardio', movementType: 'cardio', equipment: 'machine' },
+  { name: "Battle Ropes", muscle: "Cardio, Arms", image: muscleImages.biceps, category: 'cardio', movementType: 'cardio', equipment: 'other' },
+  { name: "Burpees", muscle: "Cardio, Full Body", image: muscleImages.quads, category: 'cardio', movementType: 'plyometric', equipment: 'bodyweight' },
+  { name: "Box Jump", muscle: "Cardio, Legs", image: muscleImages.quads, category: 'cardio', movementType: 'plyometric', equipment: 'bodyweight' },
+  { name: "Assault Bike", muscle: "Cardio, Full Body", image: muscleImages.quads, category: 'cardio', movementType: 'cardio', equipment: 'machine' },
+  { name: "Sprints", muscle: "Cardio, Legs", image: muscleImages.quads, category: 'cardio', movementType: 'cardio', equipment: 'bodyweight' },
+  { name: "Swimming", muscle: "Cardio, Full Body", image: muscleImages.back, category: 'cardio', movementType: 'cardio', equipment: 'bodyweight' },
+  { name: "Kettlebell Swing", muscle: "Cardio, Glutes, Core", image: muscleImages.glutes, category: 'cardio', movementType: 'compound', equipment: 'kettlebell' },
+  { name: "Sled Push", muscle: "Cardio, Legs", image: muscleImages.quads, category: 'cardio', movementType: 'cardio', equipment: 'sled' },
+  { name: "Ski Erg", muscle: "Cardio, Arms", image: muscleImages.biceps, category: 'cardio', movementType: 'cardio', equipment: 'machine' },
+  { name: "Bear Crawl", muscle: "Cardio, Full Body", image: muscleImages.quads, category: 'cardio', movementType: 'cardio', equipment: 'bodyweight' },
+  { name: "Tire Flip", muscle: "Cardio, Full Body", image: muscleImages.quads, category: 'cardio', movementType: 'compound', equipment: 'other' },
+  { name: "Prowler Push", muscle: "Cardio, Legs", image: muscleImages.quads, category: 'cardio', movementType: 'cardio', equipment: 'sled' },
+  { name: "Shadow Boxing", muscle: "Cardio, Arms", image: muscleImages.biceps, category: 'cardio', movementType: 'cardio', equipment: 'bodyweight' },
+  { name: "High Knees", muscle: "Cardio, Core", image: muscleImages.abs, category: 'cardio', movementType: 'cardio', equipment: 'bodyweight' },
   // New Cardio
-  { name: "Sled Push", muscle: "Cardio, Legs", image: muscleImages.quads, category: 'cardio' },
-  { name: "Ski Erg", muscle: "Cardio, Arms", image: muscleImages.biceps, category: 'cardio' },
-  { name: "Bear Crawl", muscle: "Cardio, Full Body", image: muscleImages.quads, category: 'cardio' },
-  { name: "Tire Flip", muscle: "Cardio, Full Body", image: muscleImages.quads, category: 'cardio' },
-  { name: "Prowler Push", muscle: "Cardio, Legs", image: muscleImages.quads, category: 'cardio' },
-  { name: "Shadow Boxing", muscle: "Cardio, Arms", image: muscleImages.biceps, category: 'cardio' },
-  { name: "High Knees", muscle: "Cardio, Core", image: muscleImages.abs, category: 'cardio' }
+  { name: "Tuck Jump", muscle: "Cardio, Legs", image: muscleImages.quads, category: 'cardio', movementType: 'plyometric', equipment: 'bodyweight' },
 ];
+
+// ==================== UTILITY FUNCTIONS ====================
+
+export function getMovementTypes(): MovementType[] {
+  return ['compound', 'isolation', 'cardio', 'static', 'plyometric', 'olympic', 'calisthenics'];
+}
+
+export function getEquipmentTypes(): EquipmentType[] {
+  return ['barbell', 'dumbbell', 'cable', 'machine', 'bodyweight', 'kettlebell', 'band', 'plate', 'smith_machine', 'ez_bar', 'trap_bar', 'sled', 'other'];
+}
+
+export function filterExercises(opts: {
+  query?: string;
+  category?: string;
+  movementType?: MovementType;
+  equipment?: EquipmentType;
+}): ExerciseInfo[] {
+  let results = EXERCISE_DB;
+  if (opts.category && opts.category !== 'all') {
+    results = results.filter(e => e.category === opts.category);
+  }
+  if (opts.movementType) {
+    results = results.filter(e => e.movementType === opts.movementType);
+  }
+  if (opts.equipment) {
+    results = results.filter(e => e.equipment === opts.equipment);
+  }
+  if (opts.query?.trim()) {
+    const q = opts.query.toLowerCase();
+    results = results.filter(e =>
+      e.name.toLowerCase().includes(q) ||
+      e.muscle.toLowerCase().includes(q) ||
+      e.category.includes(q) ||
+      e.movementType.includes(q) ||
+      e.equipment.includes(q)
+    );
+  }
+  return results;
+}
+
+// Labels for display in UI
+export const MOVEMENT_TYPE_LABELS: Record<MovementType, string> = {
+  compound: 'Compound',
+  isolation: 'Isolation',
+  cardio: 'Cardio',
+  static: 'Static / Isometric',
+  plyometric: 'Plyometric',
+  olympic: 'Olympic Lift',
+  calisthenics: 'Calisthenics',
+};
+
+export const EQUIPMENT_LABELS: Record<EquipmentType, string> = {
+  barbell: 'Barbell',
+  dumbbell: 'Dumbbell',
+  cable: 'Cable',
+  machine: 'Machine',
+  bodyweight: 'Bodyweight',
+  kettlebell: 'Kettlebell',
+  band: 'Resistance Band',
+  plate: 'Plate',
+  smith_machine: 'Smith Machine',
+  ez_bar: 'EZ Bar',
+  trap_bar: 'Trap Bar',
+  sled: 'Sled',
+  other: 'Other',
+};
 
 export function searchExercises(query: string): ExerciseInfo[] {
   if (!query.trim()) return EXERCISE_DB;
   const q = query.toLowerCase();
-  return EXERCISE_DB.filter(e => e.name.toLowerCase().includes(q) || e.muscle.toLowerCase().includes(q) || e.category.includes(q));
+  return EXERCISE_DB.filter(e =>
+    e.name.toLowerCase().includes(q) ||
+    e.muscle.toLowerCase().includes(q) ||
+    e.category.includes(q) ||
+    e.movementType.includes(q) ||
+    e.equipment.replace('_', ' ').includes(q)
+  );
 }
 
 // Generic equipment/position words that should NOT drive a match on their own.
@@ -266,6 +391,7 @@ const TOKEN_SYNONYMS: Record<string, string> = {
   abs: 'ab', abdominal: 'ab', abdominals: 'ab', core: 'ab',
   obliques: 'oblique', glute: 'glutes', bicep: 'biceps', tricep: 'triceps',
   legs: 'leg', quad: 'quads', hammy: 'hamstrings', hamstring: 'hamstrings',
+  clean: 'clean', jerk: 'jerk', snatch: 'snatch',
 };
 
 function tokenizeExercise(name: string): string[] {

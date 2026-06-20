@@ -139,9 +139,13 @@ async function initDb() {
         target_weight REAL,
         focus_area TEXT,
         streak INTEGER DEFAULT 0,
-        total_sessions INTEGER DEFAULT 0
+        total_sessions INTEGER DEFAULT 0,
+        apple_health_connected INTEGER DEFAULT 0
       )
     `);
+
+    // Add columns if table already exists (safe migrations for existing DBs)
+    try { await db.execute("ALTER TABLE profiles ADD COLUMN apple_health_connected INTEGER DEFAULT 0"); } catch (e) {}
     
     await db.execute(`
       CREATE TABLE IF NOT EXISTS workouts (
@@ -151,10 +155,14 @@ async function initDb() {
         focus TEXT,
         location TEXT,
         equipment TEXT,
-        exercises TEXT NOT NULL
+        exercises TEXT NOT NULL,
+        calories_burned REAL,
+        avg_bpm REAL
       )
     `);
 
+    try { await db.execute("ALTER TABLE workouts ADD COLUMN calories_burned REAL"); } catch (e) {}
+    try { await db.execute("ALTER TABLE workouts ADD COLUMN avg_bpm REAL"); } catch (e) {}
     try { await db.execute("ALTER TABLE workouts ADD COLUMN time_start TEXT"); } catch (e) {}
     try { await db.execute("ALTER TABLE workouts ADD COLUMN time_end TEXT"); } catch (e) {}
 
@@ -831,7 +839,7 @@ Jawab sebagai Forge AI trainer yang SUDAH MENGENAL klien ini dengan baik berdasa
       } else if (msgLower.includes("perut") || msgLower.includes("buncit") || msgLower.includes("lemak")) {
         aiResponseText = `Mau ratain perut buncit? Kurangi makanan kalori tinggi dan genjot latihan kardio + beban demi memicu fat-burning terhebat. Nggak ada latihan instan, tapi dengan konsistensi pasti bisa rata! Gaspol!`;
       } else {
-        aiResponseText = `Gokilpertanyaan luar biasa, ${clientName}! Pelatih sarankan buat selalu jaga teknik gerakan agar terhindar dari cedera, tambah berat angkatan secara progresif, serta konsisten latihan min 3 kali seminggu. Kamu pasti bisa melampaui limitmu!`;
+        aiResponseText = `Gokil pertanyaan luar biasa, ${clientName}! Pelatih sarankan buat selalu jaga teknik gerakan agar terhindar dari cedera, tambah berat angkatan secara progresif, serta konsisten latihan min 3 kali seminggu. Kamu pasti bisa melampaui limitmu!`;
       }
     }
 
@@ -1215,20 +1223,9 @@ app.put("/api/profiles/:id", async (req, res) => {
   } catch (e) { res.status(500).json({ error: "Failed" }); }
 });
 
-// Delete Profile
-app.delete("/api/profiles/:id", async (req, res) => {
-  const { id } = req.params;
-  try {
-    const db = getDb();
-    await db.execute({ sql: "DELETE FROM workouts WHERE profile_id=?", args: [id] });
-    await db.execute({ sql: "DELETE FROM chat_history WHERE profile_id=?", args: [id] });
-    await db.execute({ sql: "DELETE FROM recomp_analyses WHERE profile_id=?", args: [id] });
-    await db.execute({ sql: "DELETE FROM weight_history WHERE profile_id=?", args: [id] });
-    await db.execute({ sql: "DELETE FROM workout_templates WHERE profile_id=?", args: [id] });
-    await db.execute({ sql: "DELETE FROM goals WHERE profile_id=?", args: [id] });
-    await db.execute({ sql: "DELETE FROM profiles WHERE id=?", args: [id] });
-    res.json({ success: true });
-  } catch (e) { res.status(500).json({ error: "Failed" }); }
+// Delete Profile (Dinonaktifkan demi keamanan user tetap)
+app.delete("/api/profiles/:id", (req, res) => {
+  res.status(403).json({ error: "Penghapusan profil dinonaktifkan." });
 });
 
 // Weight History
