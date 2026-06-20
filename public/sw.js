@@ -1,8 +1,11 @@
-const CACHE_NAME = 'forge-ai-v3';
+const CACHE_NAME = 'forge-ai-v4';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
   '/icon.svg',
+  '/icon-192.png',
+  '/icon-512.png',
+  '/apple-touch-icon.png',
   '/manifest.json',
   '/logo-invictuswave.svg'
 ];

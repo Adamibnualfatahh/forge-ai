@@ -107,8 +107,8 @@ export async function sendRestDayReminders(db: DbClient): Promise<{
     }
 
     const payload = JSON.stringify({
-      title: "Forge AI",
-      body: `Sudah ${days} hari belum latihan. Yuk gaspol! 💪`,
+      title: `Sudah ${days} hari belum latihan 💪`,
+      body: "Yuk gaspol latihan, jangan kasih kendor!",
       icon: "/icon.svg",
       badge: "/icon.svg",
       tag: "forge-rest-day-reminder",

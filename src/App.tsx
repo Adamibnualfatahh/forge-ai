@@ -222,9 +222,9 @@ export default function App() {
     const key = `forge-notif-${logs[0].date}`;
     if (localStorage.getItem(key)) return;
 
-    const title = 'Forge AI';
+    const title = `Sudah ${daysSince} hari belum latihan 💪`;
     const options = {
-      body: `Sudah ${daysSince} hari belum latihan. Yuk gaspol, ${activeProfile.name}!`,
+      body: `Yuk gaspol lagi, ${activeProfile.name}!`,
       icon: '/icon.svg',
       badge: '/icon.svg',
       tag: 'forge-rest-day-reminder',

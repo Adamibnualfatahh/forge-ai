@@ -64,13 +64,35 @@ export default function RestTimer() {
         if (running && restTimer.endTime) {
           reg.active?.postMessage({
             type: 'START_REST_TIMER',
-            endTime: restTimer.endTime
+            endTime: restTimer.endTime,
+            title: 'Rest Selesai! 💪',
+            body: 'Waktunya lanjut latihan! Yuk gaspol!'
           });
         } else if (!running) {
           reg.active?.postMessage({ type: 'CANCEL_REST_TIMER' });
         }
       });
     }
+  }, [running, restTimer.endTime]);
+
+  // Re-arm the Service Worker background timer the moment the app is sent to the
+  // background, so the "rest finished" notification still fires while you're in
+  // another app. (The React tick interval is throttled/paused when hidden.)
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === 'hidden' && running && restTimer.endTime && 'serviceWorker' in navigator) {
+        navigator.serviceWorker.ready.then(reg => {
+          reg.active?.postMessage({
+            type: 'START_REST_TIMER',
+            endTime: restTimer.endTime,
+            title: 'Rest Selesai! 💪',
+            body: 'Waktunya lanjut latihan! Yuk gaspol!'
+          });
+        });
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
   }, [running, restTimer.endTime]);
 
   // Show browser notification
