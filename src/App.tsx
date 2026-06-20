@@ -65,6 +65,8 @@ import EquipmentScanner from "./components/Scanner/EquipmentScanner";
 import ProgressView from "./components/Progress/ProgressView";
 import Dashboard from "./components/Dashboard/Dashboard";
 import WorkoutLogger from "./components/WorkoutLogger/WorkoutLogger";
+import ExerciseSearchModal from "./components/Modals/ExerciseSearchModal";
+import ProfileEditModal from "./components/Modals/ProfileEditModal";
 
 import { useForgeStore } from "./store";
 
@@ -2271,142 +2273,46 @@ export default function App() {
       )}
 
       {/* EXERCISE SEARCH MODAL */}
-      <AnimatePresence>
-        {showExSearch && (
-          <div className="fixed inset-0 bg-black/80 flex flex-col items-center justify-end p-0 z-50 backdrop-blur-sm"
-               onClick={() => { setShowExSearch(false); setExSearchQuery(""); }}>
-            <motion.div initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 25 }}
-              drag="y"
-              dragConstraints={{ top: 0, bottom: 300 }}
-              dragElastic={{ top: 0, bottom: 0.5 }}
-              onDragEnd={(event, info) => {
-                if (info.offset.y > 100 || info.velocity.y > 500) {
-                  setShowExSearch(false);
-                  setExSearchQuery("");
-                }
-              }}
-              className="bg-[#121212] border-t border-zinc-800 rounded-t-2xl w-full max-w-[430px] max-h-[80vh] flex flex-col cursor-grab active:cursor-grabbing"
-              onClick={e => e.stopPropagation()}>
-              
-              {/* Drag indicator */}
-              <div className="flex justify-center pt-3 pb-1 shrink-0">
-                <div className="w-10 h-1 bg-zinc-700 rounded-full"></div>
-              </div>
-
-              <div className="p-4 pt-2 border-b border-zinc-800 flex flex-col gap-3">
-                <div className="flex items-center gap-3">
-                  <input type="text" placeholder="Cari exercise..." value={exSearchQuery} onChange={e => setExSearchQuery(e.target.value)} autoFocus
-                    className="flex-1 bg-zinc-900 border border-zinc-800 rounded-xl h-10 px-3 text-sm text-white" />
-                  <button onClick={() => { setShowExSearch(false); setExSearchQuery(""); setExFilterCategory("all"); setExFilterMovement("all"); setExFilterEquipment("all"); }} className="text-zinc-400 p-2">
-                    <X className="w-5 h-5" />
-                  </button>
-                </div>
-                <div className="flex gap-2 overflow-x-auto pb-1 hide-scrollbar">
-                  <select value={exFilterCategory} onChange={e => setExFilterCategory(e.target.value)} className="bg-zinc-900 border border-zinc-800 text-xs text-white rounded-lg px-2 py-1.5 outline-none">
-                    <option value="all">Semua Otot</option>
-                    {['chest','back','shoulders','arms','legs','core','cardio'].map(c => <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>)}
-                  </select>
-                  <select value={exFilterMovement} onChange={e => setExFilterMovement(e.target.value as any)} className="bg-zinc-900 border border-zinc-800 text-xs text-white rounded-lg px-2 py-1.5 outline-none">
-                    <option value="all">Semua Tipe</option>
-                    {getMovementTypes().map(m => <option key={m} value={m}>{MOVEMENT_TYPE_LABELS[m]}</option>)}
-                  </select>
-                  <select value={exFilterEquipment} onChange={e => setExFilterEquipment(e.target.value as any)} className="bg-zinc-900 border border-zinc-800 text-xs text-white rounded-lg px-2 py-1.5 outline-none">
-                    <option value="all">Semua Alat</option>
-                    {getEquipmentTypes().map(e => <option key={e} value={e}>{EQUIPMENT_LABELS[e]}</option>)}
-                  </select>
-                </div>
-              </div>
-              <div className="flex-1 overflow-y-auto p-3 space-y-1">
-                {filterExercises({
-                  query: exSearchQuery,
-                  category: exFilterCategory,
-                  movementType: exFilterMovement === "all" ? undefined : exFilterMovement as MovementType,
-                  equipment: exFilterEquipment === "all" ? undefined : exFilterEquipment as EquipmentType
-                }).map(ex => (
-                  <button key={ex.name} onClick={() => {
-                    setLoggerExercises(prev => [...prev, { name: ex.name, sets: 3, reps: "12", notes: ex.muscle, is_cardio: ex.category === 'cardio', duration_minutes: ex.category === 'cardio' ? 30 : undefined }]);
-                    setShowExSearch(false); setExSearchQuery("");
-                  }}
-                    className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-zinc-900 transition-colors text-left">
-                    <MuscleIcon name={ex.name} size={40} />
-                    <div className="flex-1">
-                      <span className="text-sm font-semibold text-white block">{ex.name}</span>
-                      <span className="text-[12px] text-zinc-500">{ex.muscle}</span>
-                    </div>
-                    <Plus className="w-4 h-4 text-zinc-600" />
-                  </button>
-                ))}
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+      <ExerciseSearchModal 
+        show={showExSearch}
+        onClose={() => setShowExSearch(false)}
+        onSelectExercise={(ex) => {
+          setLoggerExercises(prev => [...prev, { name: ex.name, sets: 3, reps: "12", notes: ex.muscle, is_cardio: ex.category === 'cardio', duration_minutes: ex.category === 'cardio' ? 30 : undefined }]);
+        }}
+        searchQuery={exSearchQuery}
+        setSearchQuery={setExSearchQuery}
+        filterCategory={exFilterCategory}
+        setFilterCategory={setExFilterCategory}
+        filterMovement={exFilterMovement}
+        setFilterMovement={setExFilterMovement}
+        filterEquipment={exFilterEquipment}
+        setFilterEquipment={setExFilterEquipment}
+      />
 
       {/* PROFILE EDIT/DELETE MODAL */}
-      <AnimatePresence>
-        {showEditProfile && activeProfile && (
-          <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50 backdrop-blur-sm" onClick={() => { setShowEditProfile(false); setConfirmDeleteProfile(false); }}>
-            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
-              onClick={e => e.stopPropagation()}
-              className="bg-[#201f1f] border border-[#444933] rounded-2xl w-full max-w-sm p-5 relative">
-              <div className="absolute top-0 left-0 w-full h-[3px] bg-[#c3f400]"></div>
-              <button onClick={() => { setShowEditProfile(false); setConfirmDeleteProfile(false); }} className="absolute top-4 right-4 text-zinc-400 hover:text-white">
-                <X className="w-5 h-5" />
-              </button>
-              <h3 className="font-display text-xl font-bold text-white dark-text mb-4">Edit Profil</h3>
-              <div className="space-y-3">
-                <input value={editProfileName} onChange={e => setEditProfileName(e.target.value)} placeholder="Nama"
-                  className="w-full bg-[#131313] dark-input border border-zinc-700 rounded-xl h-11 px-3 text-white text-sm" />
-                <div className="grid grid-cols-2 gap-3">
-                  <input type="number" step="any" value={editProfileHeight} onChange={e => setEditProfileHeight(e.target.value)} placeholder="Tinggi (cm)"
-                    className="bg-[#131313] dark-input border border-zinc-700 rounded-xl h-11 px-3 text-white text-sm" />
-                  <input type="number" step="any" value={editProfileWeight} onChange={e => setEditProfileWeight(e.target.value)} placeholder="Berat (kg)"
-                    className="bg-[#131313] dark-input border border-zinc-700 rounded-xl h-11 px-3 text-white text-sm" />
-                </div>
-                <input type="number" step="any" value={editProfileTarget} onChange={e => setEditProfileTarget(e.target.value)} placeholder="Target Berat (kg)"
-                  className="w-full bg-[#131313] dark-input border border-zinc-700 rounded-xl h-11 px-3 text-white text-sm" />
-                {formError && showEditProfile && <p className="field-error-msg text-center">{formError}</p>}
-                <button onClick={handleEditProfile}
-                  className="w-full bg-[#c3f400] text-black font-display font-bold py-3 rounded-xl">Simpan Perubahan</button>
-                <button onClick={() => { setShowEditProfile(false); setShowAppleHealth(true); }}
-                  className="w-full flex items-center justify-center gap-2 border border-zinc-700 text-zinc-300 hover:text-[#c3f400] hover:border-[#c3f400]/50 font-semibold py-3 rounded-xl text-xs uppercase tracking-wider transition-colors">
-                  <Activity className="w-4 h-4" />
-                  Kelola Apple Health
-                </button>
-                {/* Push notification toggle */}
-                <button onClick={handleTogglePush} disabled={pushBusy || !pushSupported}
-                  className={`w-full flex items-center justify-between gap-2 border rounded-xl px-4 py-3 transition-colors ${pushEnabled ? 'border-[#c3f400]/50 text-[#c3f400]' : 'border-zinc-700 text-zinc-300'} ${(pushBusy || !pushSupported) ? 'opacity-50 cursor-not-allowed' : 'hover:border-[#c3f400]/50'}`}>
-                  <span className="flex items-center gap-2">
-                    {pushEnabled ? <Bell className="w-4 h-4" /> : <BellOff className="w-4 h-4" />}
-                    <span className="text-left">
-                      <span className="block text-xs uppercase tracking-wider font-semibold">Pengingat Latihan</span>
-                      <span className="block text-[10px] text-zinc-500 normal-case tracking-normal">
-                        {!pushSupported ? 'Tidak didukung di perangkat ini'
-                          : pushBusy ? 'Memproses...'
-                          : pushEnabled ? 'Aktif — notifikasi saat lama tak latihan' : 'Nonaktif'}
-                      </span>
-                    </span>
-                  </span>
-                  <span className={`relative w-10 h-6 rounded-full transition-colors shrink-0 ${pushEnabled ? 'bg-[#c3f400]' : 'bg-zinc-700'}`}>
-                    <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-black transition-transform ${pushEnabled ? 'translate-x-4' : ''}`}></span>
-                  </span>
-                </button>
-                <div className="border-t border-zinc-800 pt-3">
-                  {!confirmDeleteProfile ? (
-                    <button onClick={() => setConfirmDeleteProfile(true)}
-                      className="w-full text-red-400 text-xs font-semibold py-2 border border-red-900/50 rounded-xl hover:bg-red-950/30">Hapus Profil Ini</button>
-                  ) : (
-                    <div className="flex gap-2">
-                      <button onClick={handleDeleteProfile} className="flex-1 bg-red-600 text-white font-bold py-2 rounded-xl text-xs">Ya, Hapus</button>
-                      <button onClick={() => setConfirmDeleteProfile(false)} className="flex-1 bg-zinc-800 text-zinc-300 py-2 rounded-xl text-xs">Batal</button>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+      <ProfileEditModal
+        show={showEditProfile}
+        profile={activeProfile}
+        onClose={() => setShowEditProfile(false)}
+        name={editProfileName}
+        setName={setEditProfileName}
+        height={editProfileHeight}
+        setHeight={setEditProfileHeight}
+        weight={editProfileWeight}
+        setWeight={setEditProfileWeight}
+        target={editProfileTarget}
+        setTarget={setEditProfileTarget}
+        formError={formError}
+        onSave={handleEditProfile}
+        onOpenAppleHealth={() => setShowAppleHealth(true)}
+        pushEnabled={pushEnabled}
+        pushBusy={pushBusy}
+        pushSupported={pushSupported}
+        onTogglePush={handleTogglePush}
+        confirmDelete={confirmDeleteProfile}
+        setConfirmDelete={setConfirmDeleteProfile}
+        onDelete={handleDeleteProfile}
+      />
 
       {/* UPDATE WORKOUT LOG MODAL DIALOG */}
       <AnimatePresence>
