@@ -4,7 +4,7 @@ import { createClient } from "@libsql/client";
 import { GoogleGenAI, Type } from "@google/genai";
 import multer from "multer";
 import { XMLParser } from "fast-xml-parser";
-import { ensurePushSchema, registerPushRoutes } from "./push";
+import { ensurePushSchema, registerPushRoutes } from "./push.js";
 
 dotenv.config();
 

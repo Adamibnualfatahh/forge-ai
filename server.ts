@@ -5,7 +5,7 @@ import { createServer as createViteServer } from "vite";
 import { createClient } from "@libsql/client";
 import { GoogleGenAI, Type } from "@google/genai";
 import Redis from "ioredis";
-import { ensurePushSchema, registerPushRoutes } from "./api/push";
+import { ensurePushSchema, registerPushRoutes } from "./api/push.js";
 
 dotenv.config();
 
