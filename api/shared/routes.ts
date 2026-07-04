@@ -196,9 +196,15 @@ export function registerApiRoutes(app: any, cacheClient?: any) {
           break;
         }
       }
+      const xpGained = 100 + ((exercises?.length || 0) * 10);
       await db.execute({
-        sql: "UPDATE profiles SET total_sessions = total_sessions + 1, streak = ? WHERE id = ?",
-        args: [streak, profileId]
+        sql: `UPDATE profiles 
+              SET total_sessions = total_sessions + 1, 
+                  streak = ?, 
+                  xp = coalesce(xp, 0) + ?, 
+                  level = CAST(((coalesce(xp, 0) + ?) / 1000) AS INTEGER) + 1 
+              WHERE id = ?`,
+        args: [streak, xpGained, xpGained, profileId]
       });
 
       await cacheDel(`logs:${profileId}`);
@@ -215,13 +221,21 @@ export function registerApiRoutes(app: any, cacheClient?: any) {
     try {
       const db = getDb();
       const checkLog = await db.execute({
-        sql: "SELECT id FROM workouts WHERE id = ? AND profile_id = ?",
+        sql: "SELECT id, exercises FROM workouts WHERE id = ? AND profile_id = ?",
         args: [logId, profileId]
       });
 
       if (checkLog.rows.length === 0) {
         return res.status(404).json({ error: "Sesi latihan tidak ditemukan" });
       }
+
+      let deletedExercises: any[] = [];
+      try { 
+        deletedExercises = typeof checkLog.rows[0].exercises === 'string' 
+          ? JSON.parse(checkLog.rows[0].exercises as string) 
+          : checkLog.rows[0].exercises; 
+      } catch(e) {}
+      const xpLost = 100 + ((deletedExercises?.length || 0) * 10);
 
       await db.execute({
         sql: "DELETE FROM workouts WHERE id = ? AND profile_id = ?",
@@ -259,8 +273,13 @@ export function registerApiRoutes(app: any, cacheClient?: any) {
         }
       }
       await db.execute({
-        sql: "UPDATE profiles SET total_sessions = ?, streak = ? WHERE id = ?",
-        args: [dates.length, streak, profileId]
+        sql: `UPDATE profiles 
+              SET total_sessions = ?, 
+                  streak = ?, 
+                  xp = MAX(0, coalesce(xp, 0) - ?), 
+                  level = MAX(1, CAST(((MAX(0, coalesce(xp, 0) - ?)) / 1000) AS INTEGER) + 1) 
+              WHERE id = ?`,
+        args: [dates.length, streak, xpLost, xpLost, profileId]
       });
 
       await cacheDel(`logs:${profileId}`);

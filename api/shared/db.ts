@@ -33,11 +33,15 @@ export async function initDb() {
         focus_area TEXT,
         streak INTEGER DEFAULT 0,
         total_sessions INTEGER DEFAULT 0,
-        apple_health_connected INTEGER DEFAULT 0
+        apple_health_connected INTEGER DEFAULT 0,
+        level INTEGER DEFAULT 1,
+        xp INTEGER DEFAULT 0
       )
     `);
 
     try { await db.execute("ALTER TABLE profiles ADD COLUMN apple_health_connected INTEGER DEFAULT 0"); } catch (e) {}
+    try { await db.execute("ALTER TABLE profiles ADD COLUMN level INTEGER DEFAULT 1"); } catch (e) {}
+    try { await db.execute("ALTER TABLE profiles ADD COLUMN xp INTEGER DEFAULT 0"); } catch (e) {}
     
     await db.execute(`
       CREATE TABLE IF NOT EXISTS workouts (
@@ -157,8 +161,8 @@ export async function initDb() {
     const existing = await db.execute("SELECT * FROM profiles");
     if (existing.rows.length === 0) {
       await db.execute({
-        sql: `INSERT INTO profiles (id, name, avatar, height, weight, target_weight, focus_area, streak, total_sessions) 
-              VALUES (:id, :name, :avatar, :height, :weight, :target_weight, :focus_area, :streak, :total_sessions)`,
+        sql: `INSERT INTO profiles (id, name, avatar, height, weight, target_weight, focus_area, streak, total_sessions, level, xp) 
+              VALUES (:id, :name, :avatar, :height, :weight, :target_weight, :focus_area, :streak, :total_sessions, :level, :xp)`,
         args: {
           id: "adam",
           name: "Adam",
@@ -168,13 +172,15 @@ export async function initDb() {
           target_weight: 80,
           focus_area: "Pull Plan",
           streak: 0,
-          total_sessions: 0
+          total_sessions: 0,
+          level: 1,
+          xp: 0
         }
       });
 
       await db.execute({
-        sql: `INSERT INTO profiles (id, name, avatar, height, weight, target_weight, focus_area, streak, total_sessions) 
-              VALUES (:id, :name, :avatar, :height, :weight, :target_weight, :focus_area, :streak, :total_sessions)`,
+        sql: `INSERT INTO profiles (id, name, avatar, height, weight, target_weight, focus_area, streak, total_sessions, level, xp) 
+              VALUES (:id, :name, :avatar, :height, :weight, :target_weight, :focus_area, :streak, :total_sessions, :level, :xp)`,
         args: {
           id: "thiara",
           name: "Thiara",
@@ -184,7 +190,9 @@ export async function initDb() {
           target_weight: 55,
           focus_area: "Legs Plan",
           streak: 0,
-          total_sessions: 0
+          total_sessions: 0,
+          level: 1,
+          xp: 0
         }
       });
       console.log("Seeded database with default profiles Adam and Thiara.");

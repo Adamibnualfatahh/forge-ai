@@ -72,6 +72,7 @@ interface WorkoutLoggerProps {
   currentTab: string;
   isSavingLog: boolean;
   handleSaveWorkoutLog: () => void;
+  triggerStartWorkout: () => void;
 }
 
 export default function WorkoutLogger({
@@ -137,7 +138,8 @@ export default function WorkoutLogger({
   formError,
   currentTab,
   isSavingLog,
-  handleSaveWorkoutLog
+  handleSaveWorkoutLog,
+  triggerStartWorkout
 }: WorkoutLoggerProps) {
   return (
     <motion.div 
@@ -603,14 +605,23 @@ export default function WorkoutLogger({
       )}
 
       {formError && currentTab === 'logger' && <p className="field-error-msg text-center">{formError}</p>}
-      <button 
-        onClick={handleSaveWorkoutLog}
-        disabled={loggerExercises.length === 0 || isSavingLog}
-        className="w-full bg-[#c3f400] text-black font-display font-black py-4 px-4 rounded-xl flex items-center justify-center gap-2 transition-all text-md shadow-[0_4px_15px_rgba(195,244,0,0.2)] disabled:opacity-50"
-      >
-        <CheckCircle2 className="w-5 h-5 fill-black/10" />
-        {isSavingLog ? "Menyimpan..." : "Simpan Workout"}
-      </button>
+      <div className="space-y-3 pt-2">
+        <button 
+          onClick={triggerStartWorkout}
+          disabled={loggerExercises.length === 0}
+          className="w-full bg-[#c3f400] hover:bg-[#abd600] text-black font-display font-black py-4 px-4 rounded-xl flex items-center justify-center gap-2 transition-all text-md shadow-[0_4px_15px_rgba(195,244,0,0.2)] disabled:opacity-50"
+        >
+          Mulai Latihan
+        </button>
+        <button 
+          onClick={handleSaveWorkoutLog}
+          disabled={loggerExercises.length === 0 || isSavingLog}
+          className="w-full bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-display font-bold py-3.5 px-4 rounded-xl flex items-center justify-center gap-2 transition-all text-sm disabled:opacity-50"
+        >
+          <CheckCircle2 className="w-4 h-4" />
+          {isSavingLog ? "Menyimpan..." : "Simpan Workout Saja"}
+        </button>
+      </div>
     </motion.div>
   );
 }

@@ -29,6 +29,8 @@ export interface Profile {
   streak: number;
   total_sessions: number;
   apple_health_connected?: boolean;
+  level?: number;
+  xp?: number;
 }
 
 export interface WorkoutLog {

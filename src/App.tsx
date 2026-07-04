@@ -176,16 +176,63 @@ export default function App() {
   };
 
   // Achievements
-  const getAchievements = () => [
-    { id: 'first', icon: 'Target', title: 'Sesi Pertama', unlocked: logs.length >= 1 },
-    { id: '5sess', icon: 'Flame', title: '5 Sesi', unlocked: logs.length >= 5 },
-    { id: '10sess', icon: 'Dumbbell', title: '10 Sesi', unlocked: logs.length >= 10 },
-    { id: '25sess', icon: 'Award', title: '25 Sesi', unlocked: logs.length >= 25 },
-    { id: '50sess', icon: 'Zap', title: '50 Sesi', unlocked: logs.length >= 50 },
-    { id: '1000vol', icon: 'Crown', title: '1000kg Volume', unlocked: logs.some(l => calculateTotalVolume(l.exercises) >= 1000) },
-    { id: '2streak', icon: 'Calendar', title: '2 Minggu Streak', unlocked: (activeProfile?.streak || 0) >= 2 },
-    { id: '4streak', icon: 'Star', title: '4 Minggu Streak', unlocked: (activeProfile?.streak || 0) >= 4 },
-  ];
+  const getAchievements = () => {
+    const totalSessions = logs.length;
+    const maxStreak = activeProfile?.streak || 0;
+    const level = activeProfile?.level || 1;
+    
+    let maxVolume = 0;
+    let totalCardioSessions = 0;
+    let totalLegDays = 0;
+    let hasNightOwl = false;
+    let hasEarlyBird = false;
+    let isCalisthenics = false;
+    
+    logs.forEach(log => {
+      const vol = calculateTotalVolume(log.exercises);
+      if (vol > maxVolume) maxVolume = vol;
+      
+      const hasCardio = log.exercises.some(e => e.is_cardio);
+      if (hasCardio) totalCardioSessions++;
+      
+      if (log.focus && log.focus.toLowerCase().includes('leg')) totalLegDays++;
+      
+      if (log.time_start) {
+        const hour = parseInt(log.time_start.split(':')[0], 10);
+        if (hour >= 22 || hour <= 3) hasNightOwl = true;
+        if (hour >= 4 && hour <= 7) hasEarlyBird = true;
+      }
+      
+      if (log.exercises.length > 0 && vol === 0 && !hasCardio) isCalisthenics = true;
+    });
+
+    return [
+      { id: 'first', icon: 'Target', title: 'Sesi Pertama', unlocked: totalSessions >= 1 },
+      { id: '5sess', icon: 'Flame', title: '5 Sesi Latihan', unlocked: totalSessions >= 5 },
+      { id: '10sess', icon: 'Dumbbell', title: '10 Sesi Konsisten', unlocked: totalSessions >= 10 },
+      { id: '25sess', icon: 'Award', title: '25 Sesi Dedikasi', unlocked: totalSessions >= 25 },
+      { id: '50sess', icon: 'Zap', title: '50 Sesi Unstoppable', unlocked: totalSessions >= 50 },
+      { id: '100sess', icon: 'Trophy', title: '100 Sesi Centurion', unlocked: totalSessions >= 100 },
+      
+      { id: '1000vol', icon: 'Shield', title: '1.000kg Heavy Lifter', unlocked: maxVolume >= 1000 },
+      { id: '5000vol', icon: 'Crown', title: '5.000kg Titan', unlocked: maxVolume >= 5000 },
+      { id: '10000vol', icon: 'Zap', title: '10.000kg Hercules', unlocked: maxVolume >= 10000 },
+      
+      { id: '2streak', icon: 'Calendar', title: '2 Minggu Streak', unlocked: maxStreak >= 2 },
+      { id: '4streak', icon: 'Star', title: '1 Bulan Warrior', unlocked: maxStreak >= 4 },
+      { id: '8streak', icon: 'Activity', title: 'Habit Builder (8 Wk)', unlocked: maxStreak >= 8 },
+      
+      { id: 'nightowl', icon: 'Moon', title: 'Night Owl', unlocked: hasNightOwl },
+      { id: 'earlybird', icon: 'Sun', title: 'Early Bird', unlocked: hasEarlyBird },
+      
+      { id: 'cardio', icon: 'HeartPulse', title: 'Cardio Bunny', unlocked: totalCardioSessions >= 5 },
+      { id: 'legs', icon: 'Target', title: 'Leg Day Lover', unlocked: totalLegDays >= 5 },
+      { id: 'calis', icon: 'ArrowUp', title: 'Calisthenics', unlocked: isCalisthenics },
+      
+      { id: 'lvl5', icon: 'ArrowUp', title: 'Level 5 Reached', unlocked: level >= 5 },
+      { id: 'lvl10', icon: 'Trophy', title: 'Level 10 Master', unlocked: level >= 10 },
+    ];
+  };
 
   // PDF Export
   const exportPDF = () => {
@@ -2098,6 +2145,7 @@ export default function App() {
               currentTab={currentTab}
               isSavingLog={isSavingLog}
               handleSaveWorkoutLog={handleSaveWorkoutLog}
+              triggerStartWorkout={triggerStartWorkout}
             />
           )}
 

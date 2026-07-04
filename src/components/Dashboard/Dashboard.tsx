@@ -3,7 +3,8 @@ import { motion } from "motion/react";
 import { 
   Calendar, Activity, TrendingUp, Flame, Dumbbell, Award, 
   MapPin, Clock, CheckCircle2, Zap, X, Plus, Trash2, Edit, Share2, ArrowRight, Sparkles, RefreshCw, Check,
-  Target, Crown, Star, Coffee, Compass
+  Target, Crown, Star, Coffee, Compass,
+  Moon, Sun, Shield, HeartPulse, Trophy, Timer, ArrowUp
 } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { Profile, WorkoutLog, Exercise, RecompAnalysis } from "../../types";
@@ -58,7 +59,15 @@ const IconMap: Record<string, any> = {
   Zap: Zap,
   Crown: Crown,
   Calendar: Calendar,
-  Star: Star
+  Star: Star,
+  Moon: Moon,
+  Sun: Sun,
+  Shield: Shield,
+  HeartPulse: HeartPulse,
+  Trophy: Trophy,
+  Timer: Timer,
+  ArrowUp: ArrowUp,
+  Activity: Activity
 };
 
 export default function Dashboard({
@@ -112,10 +121,24 @@ export default function Dashboard({
     >
       {/* Hello Welcome and Current Date Panel */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-        <div>
-          <h2 className="font-display text-2xl font-bold text-white tracking-tight">Halo, {activeProfile.name}</h2>
-          <p className="font-sans text-sm text-[#c4c9ac] mt-1 flex items-center gap-1.5">
-            <Calendar className="w-4 h-4 text-[#c3f400]" />
+        <div className="flex-1 w-full sm:w-auto">
+          <div className="flex justify-between items-end mb-1">
+            <h2 className="font-display text-2xl font-bold text-white tracking-tight">Halo, {activeProfile.name}</h2>
+            <div className="text-right">
+              <span className="text-xs font-bold text-[#c3f400] uppercase tracking-wider">Level {activeProfile.level || 1}</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="flex-1 h-2 bg-zinc-800 rounded-full overflow-hidden">
+              <div 
+                className="h-full bg-[#c3f400] shadow-[0_0_10px_rgba(195,244,0,0.5)] transition-all duration-1000" 
+                style={{ width: `${((activeProfile.xp || 0) % 1000) / 10}%` }}
+              ></div>
+            </div>
+            <span className="text-[10px] font-mono text-zinc-400">{(activeProfile.xp || 0) % 1000}/1000 XP</span>
+          </div>
+          <p className="font-sans text-xs text-[#c4c9ac] mt-2 flex items-center gap-1.5">
+            <Calendar className="w-3.5 h-3.5 text-[#c3f400]" />
             {new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
           </p>
         </div>
@@ -235,16 +258,28 @@ export default function Dashboard({
       </div>
 
       {/* ACHIEVEMENTS */}
-      <div className="bg-[#121212] rounded-xl p-5 border border-zinc-800/10">
+      <div className="bg-[#121212] rounded-xl p-5 border border-zinc-800/10 overflow-hidden">
         <h3 className="text-xs uppercase tracking-widest text-[#c4c9ac] font-bold mb-3 flex items-center gap-1.5">
           <Award className="w-3.5 h-3.5 text-[#c3f400]" /> Achievements
         </h3>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex overflow-x-auto gap-3 pb-3 scrollbar-hide snap-x px-1">
           {getAchievements().map((a, i) => {
             const IconComp = IconMap[a.icon] || Award;
             return (
-              <div key={i} className={`px-3 py-1.5 rounded-full text-[12px] font-bold flex items-center gap-1.5 ${a.unlocked ? 'bg-[#c3f400]/10 text-[#c3f400] border border-[#c3f400]/30' : 'bg-zinc-800/50 text-zinc-600 border border-zinc-700/30'}`}>
-                <IconComp className={`w-3 h-3 ${a.unlocked ? 'text-[#c3f400]' : 'text-zinc-600'}`} /> {a.title}
+              <div 
+                key={i} 
+                className={`shrink-0 snap-start w-28 h-24 p-3 rounded-2xl flex flex-col items-center justify-center gap-2.5 border transition-all ${
+                  a.unlocked 
+                    ? 'bg-[#c3f400]/10 border-[#c3f400]/40 shadow-[0_4px_20px_rgba(195,244,0,0.1)]' 
+                    : 'bg-[#1a1a1a] border-zinc-800/80 opacity-70'
+                }`}
+              >
+                <div className={`p-2 rounded-full ${a.unlocked ? 'bg-[#c3f400]/20' : 'bg-zinc-800/50'}`}>
+                  <IconComp className={`w-5 h-5 ${a.unlocked ? 'text-[#c3f400]' : 'text-zinc-600'}`} />
+                </div>
+                <span className={`text-[11px] font-bold text-center leading-tight ${a.unlocked ? 'text-white' : 'text-zinc-500'}`}>
+                  {a.title}
+                </span>
               </div>
             );
           })}
