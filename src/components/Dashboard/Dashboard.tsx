@@ -99,6 +99,8 @@ export default function Dashboard({
   setShowShare,
   setShowFullHistory
 }: DashboardProps) {
+  const [showFinishConfirm, setShowFinishConfirm] = React.useState(false);
+
   return (
     <motion.div 
       key="dashboard"
@@ -413,14 +415,35 @@ export default function Dashboard({
           <RestTimer />
 
           <div className="flex gap-3 items-center">
-            <button 
-              onClick={submitActiveWorkout}
-              disabled={isSavingLog}
-              className="flex-1 bg-[#c3f400] hover:bg-[#abd600] text-black font-display font-extrabold py-4 px-4 rounded-xl flex items-center justify-center gap-2 transition-all disabled:opacity-50"
-            >
-              <Award className="w-5 h-5" />
-              {isSavingLog ? "Menyimpan..." : "Selesai & Simpan"}
-            </button>
+            {showFinishConfirm ? (
+              <div className="flex-1 flex gap-2">
+                <button 
+                  onClick={() => {
+                    setShowFinishConfirm(false);
+                    submitActiveWorkout();
+                  }}
+                  disabled={isSavingLog}
+                  className="flex-1 bg-red-600 hover:bg-red-700 text-white font-display font-bold py-4 px-2 rounded-xl flex items-center justify-center transition-all disabled:opacity-50 text-sm"
+                >
+                  Yakin Selesai?
+                </button>
+                <button 
+                  onClick={() => setShowFinishConfirm(false)}
+                  className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-white font-display font-bold py-4 px-2 rounded-xl flex items-center justify-center transition-all text-sm"
+                >
+                  Batal
+                </button>
+              </div>
+            ) : (
+              <button 
+                onClick={() => setShowFinishConfirm(true)}
+                disabled={isSavingLog}
+                className="flex-1 bg-[#c3f400] hover:bg-[#abd600] text-black font-display font-extrabold py-4 px-4 rounded-xl flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+              >
+                <Award className="w-5 h-5" />
+                {isSavingLog ? "Menyimpan..." : "Selesai & Simpan"}
+              </button>
+            )}
             <button 
               onClick={() => setIsActivelyTraining(false)}
               className="font-sans text-sm text-[#c4c9ac] hover:text-white border border-zinc-800 hover:bg-zinc-900/60 px-5 py-4 rounded-xl transition-all"
